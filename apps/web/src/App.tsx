@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { api, modoDemo, type Adjudicacion, type Proceso, type Resultado, type Resumen } from "./lib/api";
-import { formatearFecha, formatearMonto } from "./lib/format";
+import { api, modoDemo, type Adjudicacion, type Proceso, type Resultado, type Resumen, type Semanal } from "./lib/api";
+import { formatearCompacto, formatearFecha, formatearMonto } from "./lib/format";
 
 function useRuta() {
   const leer = () => decodeURIComponent(location.hash.replace(/^#/, "")) || "/";
@@ -66,7 +66,88 @@ function Inicio() {
         <li><strong>2</strong> Mirá montos, fechas y cantidad de oferentes</li>
         <li><strong>3</strong> Abrí el proceso oficial en la DNCP</li>
       </ul>
+      <ResumenSemanal />
     </section>
+  );
+}
+
+function ResumenSemanal() {
+  const { cargando, datos: r, error } = useCarga<Semanal>(() => api.resumenSemanal(), []);
+  const pct = r && r.con_dato_oferentes > 0 ? Math.round((r.un_solo_oferente / r.con_dato_oferentes) * 100) : null;
+  return (
+    <section className="semanal" aria-labelledby="t-semanal">
+      <div className="semanal-cab">
+        <h2 id="t-semanal">Resumen de la semana</h2>
+        {r && <p className="meta">{formatearFecha(r.desde)} – {formatearFecha(r.hasta)}</p>}
+      </div>
+      <Estado cargando={cargando} error={error} vacio={!!r && r.adjudicaciones === 0 && r.procesos_publicados === 0}>
+        {r && (
+          <>
+            <dl className="cifras">
+              <div><dt>Monto adjudicado</dt><dd>{formatearCompacto(r.monto_total)}</dd></div>
+              <div><dt>Adjudicaciones</dt><dd>{r.adjudicaciones}</dd></div>
+              <div><dt>Llamados publicados</dt><dd>{r.procesos_publicados}</dd></div>
+              <div>
+                <dt>Procesos con un solo oferente</dt>
+                <dd>{pct == null ? "—" : `${pct} %`}</dd>
+                {pct != null && <p className="meta">{r.un_solo_oferente} de {r.con_dato_oferentes} con dato</p>}
+              </div>
+            </dl>
+
+            <div className="rankings">
+              <Ranking titulo="Instituciones con más monto adjudicado"
+                items={r.top_entidades.map((e) => ({ k: e.id, href: `#/entidad/${e.id}`, nombre: e.nombre, monto: e.monto, n: e.cantidad }))} />
+              <Ranking titulo="Proveedores con más monto adjudicado"
+                items={r.top_proveedores.map((p) => ({ k: p.ruc, href: `#/proveedor/${p.ruc}`, nombre: p.nombre, monto: p.monto, n: p.cantidad }))} />
+            </div>
+
+            {r.mayores.length > 0 && (
+              <>
+                <h3 className="sub">Adjudicaciones más grandes</h3>
+                <ul className="tarjetas">
+                  {r.mayores.map((m, i) => (
+                    <li key={i}>
+                      <h3>{m.titulo}</h3>
+                      <p className="meta">
+                        {m.entidad_id ? <a href={`#/entidad/${m.entidad_id}`}>{m.entidad_nombre}</a> : "Institución sin dato"}
+                        {" → "}
+                        {m.proveedor_ruc ? <a href={`#/proveedor/${m.proveedor_ruc}`}>{m.proveedor_nombre}</a> : "proveedor sin dato"}
+                      </p>
+                      <p className="monto">{formatearMonto(m.monto)}</p>
+                      <p className="meta">{formatearFecha(m.fecha)} · <Oferentes n={m.num_oferentes} /></p>
+                      <EnlaceDncp url={m.url_dncp} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <p className="nota">
+              Que un proceso tenga un solo oferente no implica por sí mismo una irregularidad; es un dato de contexto.
+              {r.actualizado && <> Datos actualizados al {formatearFecha(r.actualizado)}.</>}
+            </p>
+          </>
+        )}
+      </Estado>
+    </section>
+  );
+}
+
+function Ranking({ titulo, items }: { titulo: string; items: { k: string; href: string; nombre: string; monto: number; n: number }[] }) {
+  if (!items.length) return null;
+  const max = Math.max(...items.map((i) => i.monto), 1);
+  return (
+    <div className="ranking">
+      <h3 className="sub">{titulo}</h3>
+      <ol>
+        {items.map((i) => (
+          <li key={i.k}>
+            <a href={i.href}>{i.nombre}</a>
+            <span className="barra-fondo" aria-hidden="true"><span style={{ width: `${(i.monto / max) * 100}%` }} /></span>
+            <span className="meta">{formatearCompacto(i.monto)} · {i.n} {i.n === 1 ? "adjudicación" : "adjudicaciones"}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

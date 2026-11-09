@@ -1,5 +1,5 @@
 // Datos ficticios para desarrollar sin Supabase. NO son datos reales.
-import type { Adjudicacion, Proceso, Resultado, Resumen } from "./api";
+import type { Adjudicacion, Proceso, Resultado, Resumen, Semanal } from "./api";
 
 const prov = [
   { ruc: "80000001-1", nombre: "Proveedor Ejemplo S.A." },
@@ -15,6 +15,14 @@ const adjs: Adjudicacion[] = [
 ];
 
 export const demo = {
+  semanal: async (): Promise<Semanal> => ({
+    desde: "2026-11-02T15:00:00Z", hasta: "2026-11-09T15:00:00Z", adjudicaciones: 2, monto_total: 1_730_000_000,
+    procesos_adjudicados: 2, un_solo_oferente: 1, con_dato_oferentes: 2, procesos_publicados: 5, actualizado: "2026-11-09T15:00:00Z",
+    top_entidades: [{ id: "E1", nombre: ent[0].nombre, monto: 1_730_000_000, cantidad: 2 }],
+    top_proveedores: [{ ruc: prov[0].ruc, nombre: prov[0].nombre, monto: 1_250_000_000, cantidad: 1 }, { ruc: prov[1].ruc, nombre: prov[1].nombre, monto: 480_000_000, cantidad: 1 }],
+    mayores: adjs.map((a, i) => ({ titulo: a.procesos!.titulo, monto: a.monto!, fecha: a.fecha!, num_oferentes: a.num_oferentes,
+      url_dncp: a.procesos!.url_dncp, entidad_id: "E1", entidad_nombre: ent[0].nombre, proveedor_ruc: prov[i].ruc, proveedor_nombre: prov[i].nombre })),
+  }),
   buscar: async (q: string): Promise<Resultado[]> => {
     const t = q.toLowerCase();
     return [

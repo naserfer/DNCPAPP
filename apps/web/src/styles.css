@@ -58,3 +58,19 @@ h3 { font-size: 1rem; margin: 0 0 4px; font-weight: 600; }
 .pie p { margin: 0 0 8px; }
 
 @media (max-width: 480px) { .buscador.grande { flex-direction: column; } .buscador.grande button { padding: 15px; } }
+
+.semanal { margin-top: 64px; padding-top: 40px; border-top: 1px solid var(--line); }
+.semanal-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.semanal-cab h2 { margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; }
+.semanal .cifras { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 20px; }
+.sub { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin: 36px 0 14px; }
+.rankings { display: grid; gap: 8px 32px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.ranking ol { list-style: none; padding: 0; margin: 0; counter-reset: r; }
+.ranking li { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line); counter-increment: r; }
+.ranking li a { font-weight: 600; text-decoration: none; }
+.ranking li a::before { content: counter(r) ". "; color: var(--muted); font-weight: 400; }
+.ranking li a:hover { text-decoration: underline; }
+.barra-fondo { display: block; height: 4px; background: var(--soft); border-radius: 99px; overflow: hidden; }
+.barra-fondo span { display: block; height: 100%; background: var(--fg); border-radius: 99px; }
+.ranking .meta { margin: 0; }
+.nota { color: var(--muted); font-size: .8rem; margin-top: 24px; }
