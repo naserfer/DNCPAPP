@@ -1,0 +1,14 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Dependencias y builds
+node_modules/
+__pycache__/
+.venv/
+dist/
+
+# Datos locales
+data/raw/
+*.sqlite
