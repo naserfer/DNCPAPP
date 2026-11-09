@@ -1,23 +1,17 @@
-# Puesta en marcha (solo clics, sin comandos)
+# Despliegue
 
-## 1. Secretos de la ingesta (GitHub)
-Repo → **Settings → Secrets and variables → Actions → New repository secret**. Crear:
+## Datos (ya funcionando)
+La ingesta corre **dentro de Supabase** (migración `002`): pg_cron cada minuto + pg_net contra la API pública de la DNCP (sin credenciales, 15 llamadas/min). No hay secretos en GitHub ni en el frontend.
 
-| Nombre | Valor |
-|---|---|
-| `DNCP_REQUEST_TOKEN` | el "Request token" de tu aplicación en el portal de datos de la DNCP |
-| `DNCP_TOKEN_URL` | `https://contrataciones.gov.py/datos/api/oauth/token` |
-| `SUPABASE_URL` | `https://egvcqupndjmuybiteioj.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | la clave secreta (rotada) de Supabase |
+- Estado: SQL Editor → `select * from public.ingesta_estado;`
+- Carga histórica: `select public.dncp_cargar_desde('2026-01-01');`
+- Errores: `select ocid, detalle from public.ingesta_cola where estado = 'error';`
 
-Luego **Actions → Ingesta DNCP → Run workflow**. Dejar "desde" vacío para la prueba (últimos 2 días). Si termina en verde, hay datos en Supabase; después correrlo con `2026-01-01` para la carga histórica.
-Si falla, el error queda en la tabla `ingestas` (columna `detalle`) y en el log del workflow.
+Capacidad: ~12 procesos/min (~17.000/día). Los últimos 30 días se completan en pocas horas.
 
-## 2. Publicar la web (Cloudflare Pages)
-Cloudflare → **Workers & Pages → Create → Pages → Connect to Git** → repo `DNCPAPP`.
-- Build command: `npm install && npm run build`
-- Build output directory: `dist`
-- Root directory: `apps/web`
-- Variables: `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (la clave publishable).
+## Web (Cloudflare Pages)
+El build listo está en `apps/web/dist` (generado con esbuild; el CI valida además el build con Vite).
+Configuración pública en `apps/web/.env.production` (URL y clave publishable, protegidas por RLS).
 
-Cada push a `main` publica solo.
+- Subida directa: Workers & Pages → Create → Pages → Upload assets → proyecto `contratos-abiertos` → subir `apps/web/dist`.
+- Automático (opcional): Connect to Git → repo `DNCPAPP`, root `apps/web`, build `npm install && npm run build`, output `dist`.
