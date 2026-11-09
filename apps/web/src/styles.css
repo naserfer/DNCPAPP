@@ -74,3 +74,13 @@ h3 { font-size: 1rem; margin: 0 0 4px; font-weight: 600; }
 .barra-fondo span { display: block; height: 100%; background: var(--fg); border-radius: 99px; }
 .ranking .meta { margin: 0; }
 .nota { color: var(--muted); font-size: .8rem; margin-top: 24px; }
+
+.marca { display: flex; align-items: baseline; gap: 10px; }
+.por { color: var(--muted); font-size: .8rem; text-decoration: none; }
+.por:hover { color: var(--fg); text-decoration: underline; }
+.ardentium { margin-top: 64px; padding: 28px; border: 1px solid var(--fg); border-radius: 16px; }
+.ardentium h2 { margin: 6px 0 8px; font-size: 1.35rem; letter-spacing: -0.02em; }
+.ardentium .meta { font-size: .95rem; max-width: 34em; }
+.boton { display: inline-block; margin-top: 18px; padding: 11px 18px; border-radius: 12px; background: var(--fg); color: var(--bg); font-weight: 600; text-decoration: none; }
+.boton:hover { opacity: .85; }
+.firma { color: var(--fg); font-weight: 500; margin-bottom: 12px !important; }

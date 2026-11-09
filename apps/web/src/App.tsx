@@ -67,6 +67,7 @@ function Inicio() {
         <li><strong>3</strong> Abrí el proceso oficial en la DNCP</li>
       </ul>
       <ResumenSemanal />
+      <BloqueArdentium />
     </section>
   );
 }
@@ -260,6 +261,23 @@ function Entidad({ id }: { id: string }) {
   );
 }
 
+const ARDENTIUM = "https://ardentium.tech/?utm_source=contratos-abiertos&utm_medium=referral";
+const enlaceArdentium = (campania: string) => `${ARDENTIUM}&utm_campaign=${campania}`;
+
+function BloqueArdentium() {
+  return (
+    <aside className="ardentium" aria-label="Sobre quién hizo este sitio">
+      <p className="etiqueta">Un proyecto de Ardentium</p>
+      <h2>Datos públicos convertidos en algo que cualquiera entiende.</h2>
+      <p className="meta">
+        Diseñamos y desarrollamos este sitio de forma independiente y gratuita. Si tu empresa necesita una plataforma,
+        un panel de datos o software a medida, hablemos.
+      </p>
+      <a className="boton" href={enlaceArdentium("bloque-portada")} target="_blank" rel="noopener">Conocé Ardentium ↗</a>
+    </aside>
+  );
+}
+
 export default function App() {
   const ruta = useRuta();
   const [, seg, ...resto] = ruta.split("/");
@@ -273,12 +291,16 @@ export default function App() {
     <>
       <a href="#contenido" className="skip">Saltar al contenido</a>
       <header className="barra">
-        <a href="#/" className="logo">Contratos Abiertos</a>
+        <span className="marca">
+          <a href="#/" className="logo">Contratos Abiertos</a>
+          <a href={enlaceArdentium("encabezado")} target="_blank" rel="noopener" className="por">por Ardentium</a>
+        </span>
         <button className="tema" onClick={alternarTema} aria-label="Cambiar entre tema claro y oscuro"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg></button>
       </header>
       {modoDemo && <p className="demo" role="note">Modo demostración: los datos que ves son ficticios.</p>}
       <main id="contenido">{vista}</main>
       <footer className="pie">
+        <p className="firma">Hecho en Asunción por <a href={enlaceArdentium("pie")} target="_blank" rel="noopener">Ardentium</a> · software a medida</p>
         <p>Datos: Dirección Nacional de Contrataciones Públicas (DNCP), licencia CC BY 4.0. Este sitio es independiente y no está afiliado a la DNCP.</p>
         <p>La información se muestra tal como la publica la DNCP, sin juicios de valor. Para el detalle y la versión oficial, abrí el proceso en el portal de la DNCP.</p>
       </footer>
