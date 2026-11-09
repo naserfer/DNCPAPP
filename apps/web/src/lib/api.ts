@@ -19,6 +19,11 @@ export type Semanal = {
   mayores: { titulo: string; monto: number; fecha: string; num_oferentes: number | null; url_dncp: string | null;
     entidad_id: string | null; entidad_nombre: string | null; proveedor_ruc: string | null; proveedor_nombre: string | null }[];
 };
+export type Altas = {
+  anho: number; mes: number; total: number; contratados: number; permanentes: number; devengado: number;
+  instituciones: number; sin_comparacion: number;
+  top: { oee: string; nombre: string; altas: number; contratados: number; permanentes: number; devengado: number }[];
+} | null;
 export type Proceso = {
   ocid: string; titulo: string; modalidad: string | null; estado: string | null; monto_estimado: number | null;
   moneda: string | null; fecha_publicacion: string | null; url_dncp: string | null;
@@ -37,6 +42,9 @@ async function rest<T>(ruta: string, init?: RequestInit): Promise<T> {
 const enc = encodeURIComponent;
 
 export const api = {
+  altasFuncionarios: (): Promise<Altas> =>
+    modoDemo ? demo.altas() : rest("rpc/altas_funcionarios", { method: "POST", body: "{}" }),
+
   resumenSemanal: (): Promise<Semanal> =>
     modoDemo ? demo.semanal() : rest("rpc/resumen_semanal", { method: "POST", body: "{}" }),
 

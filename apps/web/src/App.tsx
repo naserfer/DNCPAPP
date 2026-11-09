@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { api, modoDemo, type Adjudicacion, type Proceso, type Resultado, type Resumen, type Semanal } from "./lib/api";
+import { api, modoDemo, type Adjudicacion, type Proceso, type Resultado, type Resumen, type Semanal, type Altas } from "./lib/api";
 import { formatearCompacto, formatearFecha, formatearMonto } from "./lib/format";
 
 function useRuta() {
@@ -67,6 +67,7 @@ function Inicio() {
         <li><strong>3</strong> Abrí el proceso oficial en la DNCP</li>
       </ul>
       <ResumenSemanal />
+      <AltasFuncionarios />
       <BloqueArdentium />
     </section>
   );
@@ -133,7 +134,50 @@ function ResumenSemanal() {
   );
 }
 
-function Ranking({ titulo, items }: { titulo: string; items: { k: string; href: string; nombre: string; monto: number; n: number }[] }) {
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+function AltasFuncionarios() {
+  const { cargando, datos: a, error } = useCarga<Altas>(() => api.altasFuncionarios(), []);
+  const n = (v: number) => new Intl.NumberFormat("es-PY").format(v);
+  return (
+    <section className="semanal" aria-labelledby="t-altas">
+      <div className="semanal-cab">
+        <h2 id="t-altas">Nuevos funcionarios públicos</h2>
+        {a && <p className="meta">{MESES[a.mes - 1]} {a.anho}</p>}
+      </div>
+      {!cargando && !error && !a ? (
+        <p className="aviso">Estamos procesando la nómina oficial. Este resumen aparece cuando un mes completo está disponible.</p>
+      ) : (
+        <Estado cargando={cargando} error={error}>
+          {a && (
+            <>
+              <dl className="cifras">
+                <div><dt>Personas que ingresaron</dt><dd>{n(a.total)}</dd></div>
+                <div><dt>Contratadas</dt><dd>{n(a.contratados)}</dd></div>
+                <div><dt>Permanentes</dt><dd>{n(a.permanentes)}</dd></div>
+                <div><dt>Devengado en el mes</dt><dd>{formatearCompacto(a.devengado)}</dd></div>
+              </dl>
+              <Ranking titulo={`Instituciones con más ingresos en ${MESES[a.mes - 1]}`}
+                items={a.top.map((t) => ({ k: t.oee, href: "https://datos.sfp.gov.py/data/funcionarios", nombre: t.nombre, monto: t.altas,
+                  n: t.altas, detalle: `${n(t.altas)} ${t.altas === 1 ? "persona" : "personas"} · ${n(t.contratados)} contratadas · ${formatearCompacto(t.devengado)} devengado` }))} />
+              <p className="nota">
+                Personas con ingreso a la función pública en {a.anho} que figuran en la nómina de {MESES[a.mes - 1]} y no figuraban el mes anterior
+                en la misma institución. Fuente: nómina oficial de funcionarios (SICCA, Ministerio de Economía y Finanzas),
+                informada por cada institución; los datos pueden estar incompletos o corregirse después.
+                {a.sin_comparacion > 0 && <> {a.sin_comparacion} instituciones no se cuentan porque no informaron el mes anterior.</>}
+                {" "}<a href="https://datos.sfp.gov.py/data/funcionarios" target="_blank" rel="noopener noreferrer">Ver la nómina oficial ↗</a>
+              </p>
+            </>
+          )}
+        </Estado>
+      )}
+    </section>
+  );
+}
+
+type ItemRanking = { k: string; href: string; nombre: string; monto: number; n: number; detalle?: string };
+
+function Ranking({ titulo, items }: { titulo: string; items: ItemRanking[] }) {
   if (!items.length) return null;
   const max = Math.max(...items.map((i) => i.monto), 1);
   return (
@@ -142,9 +186,9 @@ function Ranking({ titulo, items }: { titulo: string; items: { k: string; href: 
       <ol>
         {items.map((i) => (
           <li key={i.k}>
-            <a href={i.href}>{i.nombre}</a>
+            <a href={i.href} {...(i.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{i.nombre}</a>
             <span className="barra-fondo" aria-hidden="true"><span style={{ width: `${(i.monto / max) * 100}%` }} /></span>
-            <span className="meta">{formatearCompacto(i.monto)} · {i.n} {i.n === 1 ? "adjudicación" : "adjudicaciones"}</span>
+            <span className="meta">{i.detalle ?? `${formatearCompacto(i.monto)} · ${i.n} ${i.n === 1 ? "adjudicación" : "adjudicaciones"}`}</span>
           </li>
         ))}
       </ol>

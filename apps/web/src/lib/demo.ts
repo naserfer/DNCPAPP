@@ -1,5 +1,5 @@
 // Datos ficticios para desarrollar sin Supabase. NO son datos reales.
-import type { Adjudicacion, Proceso, Resultado, Resumen, Semanal } from "./api";
+import type { Adjudicacion, Altas, Proceso, Resultado, Resumen, Semanal } from "./api";
 
 const prov = [
   { ruc: "80000001-1", nombre: "Proveedor Ejemplo S.A." },
@@ -15,6 +15,13 @@ const adjs: Adjudicacion[] = [
 ];
 
 export const demo = {
+  altas: async (): Promise<Altas> => ({
+    anho: 2026, mes: 9, total: 412, contratados: 380, permanentes: 32, devengado: 1_480_000_000, instituciones: 57, sin_comparacion: 3,
+    top: [
+      { oee: "1", nombre: "Institución de Ejemplo", altas: 120, contratados: 118, permanentes: 2, devengado: 410_000_000 },
+      { oee: "2", nombre: "Municipalidad de Ejemplo", altas: 45, contratados: 45, permanentes: 0, devengado: 98_000_000 },
+    ],
+  }),
   semanal: async (): Promise<Semanal> => ({
     desde: "2026-11-02T15:00:00Z", hasta: "2026-11-09T15:00:00Z", adjudicaciones: 2, monto_total: 1_730_000_000,
     procesos_adjudicados: 2, un_solo_oferente: 1, con_dato_oferentes: 2, procesos_publicados: 5, actualizado: "2026-11-09T15:00:00Z",
