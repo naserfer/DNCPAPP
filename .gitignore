@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!apps/web/.env.production
 
 # Dependencias y builds
 node_modules/

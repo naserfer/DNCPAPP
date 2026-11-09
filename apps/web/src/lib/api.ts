@@ -20,7 +20,7 @@ export type Proceso = {
 async function rest<T>(ruta: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${URL_BASE}/rest/v1/${ruta}`, {
     ...init,
-    headers: { apikey: KEY!, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json", ...init?.headers },
+    headers: { apikey: KEY!, "Content-Type": "application/json", ...init?.headers },
   });
   if (!res.ok) throw new Error(`Error ${res.status}`);
   return res.json() as Promise<T>;
