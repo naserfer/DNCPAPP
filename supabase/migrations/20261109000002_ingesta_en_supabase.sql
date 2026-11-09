@@ -72,7 +72,7 @@ declare
 begin
   if v_ocid is null then raise exception 'record sin ocid'; end if;
 
-  v_idll := coalesce(substring(t->>'id' from '^(\d+)'), substring(v_ocid from '-(\d+)$'));
+  v_idll := coalesce(substring(v_ocid from '^ocds-[^-]+-(\d+)'), substring(t->>'id' from '^(\d+)'));
   v_nof := coalesce(
     (t->>'numberOfTenderers')::integer,
     case when jsonb_typeof(t->'tenderers') = 'array' then jsonb_array_length(t->'tenderers') end,
@@ -195,7 +195,9 @@ begin
     if r.tipo = 'busqueda' then
       v_fecha := split_part(r.clave, '|', 1)::date;
       v_pag   := split_part(r.clave, '|', 2)::integer;
-      if r.status_code = 200 then
+      if r.status_code = 404 then  -- la DNCP responde 404 en días sin datos
+        update public.ingesta_busquedas set estado = 'ok', actualizado = now() where fecha = v_fecha and pagina = v_pag;
+      elsif r.status_code = 200 then
         begin
           j := r.content::jsonb;
           insert into public.ingesta_cola (ocid)
