@@ -1,0 +1,28 @@
+name: Ingesta DNCP
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"   # cada 3 horas
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: "Carga histórica desde (AAAA-MM-DD). Vacío = incremental"
+        required: false
+
+jobs:
+  ingestar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test ingesta/test/ocds.test.ts
+      - run: node ingesta/ingestar.ts
+        env:
+          DESDE: ${{ inputs.desde }}
+          DNCP_REQUEST_TOKEN: ${{ secrets.DNCP_REQUEST_TOKEN }}
+          DNCP_TOKEN_URL: ${{ secrets.DNCP_TOKEN_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
