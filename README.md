@@ -1,5 +1,7 @@
 # DNCPAPP
 
+En producción: https://contratos-abiertos.pages.dev
+
 Web app gratuita y de acceso inmediato para buscar y seguir proveedores, instituciones y licitaciones públicas de Paraguay, con enlace al proceso oficial de la DNCP.
 
 Proyecto de [Ardentium](https://ardentium.tech/). Estado: **fase 0 (descubrimiento)**.

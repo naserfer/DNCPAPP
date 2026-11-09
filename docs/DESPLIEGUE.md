@@ -10,6 +10,8 @@ La ingesta corre **dentro de Supabase** (migración `002`): pg_cron cada minuto 
 Capacidad: ~12 procesos/min (~17.000/día). Los últimos 30 días se completan en pocas horas.
 
 ## Web (Cloudflare Pages)
+
+En producción: https://contratos-abiertos.pages.dev (proyecto `contratos-abiertos`, subida directa).
 El build listo está en `apps/web/dist` (generado con esbuild; el CI valida además el build con Vite).
 Configuración pública en `apps/web/.env.production` (URL y clave publishable, protegidas por RLS).
 
