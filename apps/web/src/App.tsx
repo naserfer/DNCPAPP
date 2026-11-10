@@ -90,6 +90,14 @@ function Buscador({ inicial = "", grande = false }: { inicial?: string; grande?:
   );
 }
 
+// En el celular wa.me abre la app con el selector de contactos. En computadora la app de
+// escritorio ignora el texto si no hay número, así que se usa WhatsApp Web.
+function enlaceWhatsApp(mensaje: string) {
+  const movil = matchMedia("(pointer: coarse)").matches && innerWidth < 900;
+  const t = encodeURIComponent(mensaje);
+  return movil ? `https://wa.me/?text=${t}` : `https://web.whatsapp.com/send?text=${t}`;
+}
+
 function Compartir({ texto, camino }: { texto: string; camino: string }) {
   const [copiado, setCopiado] = useState(false);
   const enlace = SITIO + camino;
@@ -98,7 +106,7 @@ function Compartir({ texto, camino }: { texto: string; camino: string }) {
   };
   return (
     <div className="compartir">
-      <a className="btn whatsapp" href={`https://wa.me/?text=${encodeURIComponent(`${texto}\n${enlace}`)}`} target="_blank" rel="noopener noreferrer">
+      <a className="btn whatsapp" href={enlaceWhatsApp(`${texto}\n${enlace}`)} target="_blank" rel="noopener noreferrer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.7-5.1A8.5 8.5 0 1 1 21 11.5Z" /></svg>
         Compartir por WhatsApp
       </a>
