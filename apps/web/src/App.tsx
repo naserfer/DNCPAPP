@@ -136,8 +136,11 @@ function Compartir({ texto, camino }: { texto: string; camino: string }) {
       try { await navigator.share({ text: mensaje }); return; }
       catch (e) { if ((e as Error).name === "AbortError") return; }
     }
-    const movil = matchMedia("(pointer: coarse)").matches;
-    window.open(`${movil ? "https://wa.me/?text=" : "https://web.whatsapp.com/send?text="}${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+    // Sin menú nativo (por ejemplo, navegadores dentro de otras apps): en el celular, el esquema
+    // whatsapp:// abre el selector de chats con el mensaje; wa.me sin número no lo hace en iPhone.
+    const t = encodeURIComponent(mensaje);
+    if (matchMedia("(pointer: coarse)").matches) location.href = `whatsapp://send?text=${t}`;
+    else window.open(`https://web.whatsapp.com/send?text=${t}`, "_blank", "noopener");
   };
   const copiar = async () => {
     try { await navigator.clipboard.writeText(mensaje); setCopiado(true); setTimeout(() => setCopiado(false), 2200); } catch { /* sin permiso */ }
