@@ -209,10 +209,10 @@ function Barras({ datos, resaltar, descripcion }: { datos: { etiqueta: string; m
       <div className="lienzo" role="img" aria-label={descripcion}>
         {datos.map((d, i) => (
           <span key={d.etiqueta + i} className={i >= corte ? "fuerte" : ""} title={`${d.etiqueta}: ${montoCorto(d.monto)}`}
-            style={{ height: `${d.monto > 0 ? Math.max((d.monto / max) * 100, 4) : 1.5}%` }} />
+            style={{ height: `${d.monto > 0 ? Math.max(Math.sqrt(d.monto / max) * 100, 5) : 1.5}%` }} />
         ))}
       </div>
-      <figcaption><span>{datos[0]?.etiqueta}</span><span>{datos[datos.length - 1]?.etiqueta}</span></figcaption>
+      <figcaption><span>{datos[0]?.etiqueta}</span><span className="escala">escala comprimida para que se vean los días chicos</span><span>{datos[datos.length - 1]?.etiqueta}</span></figcaption>
     </figure>
   );
 }
