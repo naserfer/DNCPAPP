@@ -26,11 +26,16 @@ const rpc = (fn, args) => datos("rpc/" + fn, { method: "POST", body: JSON.string
 async function meta(tipo, id) {
   const f = tipo === "proveedor" ? await rpc("ficha_proveedor", { p_ruc: id }) : await rpc("ficha_entidad", { p_id: id });
   if (!f || !f.nombre) return null;
-  const verbo = tipo === "proveedor" ? "Ganó" : "Adjudicó";
+  const n = f.adjudicaciones;
+  const nombre = f.nombre === f.nombre.toUpperCase()
+    ? f.nombre.toLowerCase().replace(/(^|[\s(+])([a-záéíóúñ])/g, (m, a, b) => a + b.toUpperCase()).replace(/\b(S\.?a\.?|S\.?r\.?l\.?|S\.?a\.?e\.?c\.?a\.?|E\.?a\.?s\.?)(?=\s|$)/g, (m) => m.toUpperCase())
+    : f.nombre;
   return {
-    titulo: `${f.nombre} · Contratos Abiertos`,
-    desc: f.adjudicaciones > 0
-      ? `${verbo} ${corto(Number(f.monto_total))} en ${f.adjudicaciones} ${f.adjudicaciones === 1 ? "adjudicación" : "adjudicaciones"} con el Estado paraguayo desde el ${fecha(f.desde)}.`
+    titulo: `${nombre} · Contratos Abiertos`,
+    desc: n > 0
+      ? (tipo === "proveedor"
+          ? `Ganó ${corto(Number(f.monto_total))} en ${n} ${n === 1 ? "adjudicación" : "adjudicaciones"} del Estado paraguayo desde el ${fecha(f.desde)}.`
+          : `Adjudicó ${corto(Number(f.monto_total))} en ${n} ${n === 1 ? "compra" : "compras"} a ${f.proveedores} ${f.proveedores === 1 ? "proveedor" : "proveedores"} desde el ${fecha(f.desde)}.`)
       : "Mirá sus compras públicas con datos abiertos de la DNCP.",
   };
 }
