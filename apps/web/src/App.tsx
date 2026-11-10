@@ -446,7 +446,9 @@ function TarjetaComparable({ c }: { c: Comparable }) {
 }
 
 function Comparables({ limite, titulo }: { limite: number; titulo: string }) {
-  const { datos } = useCarga<Comparable[]>(() => api.comparables(limite), [limite]);
+  // Solo bienes: en servicios y obras (códigos 70 en adelante) cada contrato es distinto y el precio unitario no es comparable.
+  const { datos: todos } = useCarga<Comparable[]>(() => api.comparables(limite * 5), [limite]);
+  const datos = todos?.filter((c) => c.codigo < "70").slice(0, limite);
   if (!datos?.length) return null;
   return (
     <section className="bloque" aria-labelledby="t-precios">

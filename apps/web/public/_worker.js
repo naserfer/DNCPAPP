@@ -40,9 +40,23 @@ async function meta(tipo, id) {
   };
 }
 
+// Imagen de vista previa por ficha: se generan a diario (ver .github/workflows/vistas-previas.yml).
+// Si una ficha todavía no tiene la suya, se usa la imagen general.
+const IMAGENES = "https://github.com/naserfer/DNCPAPP/releases/download/og/";
+async function imagen(tipo, id, url, request, env) {
+  const general = () => env.ASSETS.fetch(new Request(new URL("/og.png", url), request));
+  try {
+    const r = await fetch(`${IMAGENES}${tipo}-${id.replace(/[^A-Za-z0-9_-]/g, "_")}.jpg`, { cf: { cacheTtl: 21600, cacheEverything: true } });
+    if (!r.ok) return general();
+    return new Response(r.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=21600", "X-Content-Type-Options": "nosniff" } });
+  } catch { return general(); }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const og = url.pathname.match(/^\/og\/(proveedor|entidad)\/([^/]+)\.jpg$/);
+    if (og && request.method === "GET") return imagen(og[1], decodeURIComponent(og[2]), url, request, env);
     const m = url.pathname.match(/^\/(proveedor|entidad)\/([^/]+)\/?$/);
     if (!m || request.method !== "GET") return env.ASSETS.fetch(request);
 
@@ -57,6 +71,8 @@ export default {
       .on('meta[property="og:title"]', poner(info.titulo))
       .on('meta[property="og:description"]', poner(info.desc))
       .on('meta[name="description"]', poner(info.desc))
+      .on('meta[property="og:image"]', poner(`${url.origin}/og/${m[1]}/${m[2]}.jpg`))
+      .on('meta[name="twitter:image"]', poner(`${url.origin}/og/${m[1]}/${m[2]}.jpg`))
       .transform(pagina);
   },
 };

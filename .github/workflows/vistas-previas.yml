@@ -1,0 +1,40 @@
+name: Vistas previas
+
+# Imagen de vista previa por ficha (las instituciones y proveedores más buscados).
+# Se guardan como archivos de la publicación "og"; el sitio las sirve desde ahí.
+on:
+  schedule:
+    - cron: "40 9 * * *" # todos los días, 06:40 de Paraguay
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["scripts/og/**", ".github/workflows/vistas-previas.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vistas-previas
+  cancel-in-progress: true
+
+jobs:
+  generar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar navegador
+        run: |
+          npm install --no-save --prefix scripts/og playwright@1
+          npx --prefix scripts/og playwright install --with-deps chromium
+      - name: Generar imágenes
+        run: node scripts/og/generar.mjs salida
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view og >/dev/null 2>&1 || gh release create og --title "Vistas previas" --notes "Imágenes de vista previa generadas automáticamente. No es una versión del código." --latest=false
+          gh release upload og salida/*.jpg --clobber
