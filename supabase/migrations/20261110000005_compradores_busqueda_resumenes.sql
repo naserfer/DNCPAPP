@@ -274,7 +274,8 @@ as $$
         when c.ruc is not null and p.qr ~ '^\d' and (c.ruc = p.qr or split_part(c.ruc, '-', 1) = p.qr) then 4.0
         when c.ruc is not null and p.qr ~ '^\d{4,}' and c.ruc like p.qr || '%' then 3.5
         when length(p.ql) >= 2 and c.nb ~ ('(^|[^a-z0-9])' || p.qre || '([^a-z0-9]|$)') then 3.0
-        when length(p.ql) >= 3 and c.nb like '%' || p.ql || '%' then 2.0
+        when length(p.ql) >= 3 and c.nb ~ ('(^|[^a-z0-9])' || p.qre) then 2.5
+        when length(p.ql) >= 6 and c.nb like '%' || p.ql || '%' then 2.0
         when length(p.ql) >= 4 and word_similarity(p.qn, c.nb) >= 0.6 then word_similarity(p.qn, c.nb)
         else 0 end)::real as s
     from cand c, p
