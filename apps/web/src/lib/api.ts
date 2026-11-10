@@ -29,6 +29,15 @@ type FichaBase = {
 export type FichaEntidad = (FichaBase & { id: string; proveedores: number;
   top_proveedores: { ruc: string; nombre: string; monto: number; cantidad: number }[] }) | null;
 export type FichaProveedor = (FichaBase & { ruc: string; instituciones: number; top_entidades: Puesto[] }) | null;
+export type Rubro = { id: string; monto: number; compras: number; productos: number; instituciones: number };
+export type FichaRubro = { id: string; desde: string; monto: number; compras: number; instituciones: number;
+  productos: { codigo: string; nombre: string; monto: number; compras: number; instituciones: number }[];
+  top_entidades: Puesto[]; top_proveedores: Puesto[] };
+export type Comparable = { codigo: string; nombre: string; unidad: string | null; instituciones: number; precio_min: number; precio_max: number; precio_mediano: number; monto: number };
+export type FichaProducto = { codigo: string; nombre: string; desde: string; unidad: string | null; otras_unidades: number; compras: number; monto: number;
+  precio_min: number | null; precio_max: number | null; precio_mediano: number | null;
+  instituciones: { id: string; nombre: string; precio: number; cantidad: number; monto: number; compras: number; fecha: string;
+    proveedor_nombre: string | null; proveedor_ruc: string | null; url_dncp: string | null }[] } | null;
 export type Opcion = { id: string; nombre: string };
 export type Novedades = { adjudicaciones: number; monto: number };
 export type EstadoDatos = { desde: string; cargando: boolean; actualizado: string | null };
@@ -53,6 +62,13 @@ export const api = {
   novedades: (desde: number, entidad?: string): Promise<Novedades> =>
     modoDemo ? demo.novedades() : rpc("novedades", { p_desde: new Date(desde).toISOString(), ...(entidad ? { p_entidad: entidad } : {}) }),
   estado: (): Promise<EstadoDatos> => (modoDemo ? demo.estado() : rpc("estado_datos")),
+  rubros: (dias: number): Promise<Rubro[]> => (modoDemo ? demo.rubros() : rpc("rubros", { dias })),
+  rubro: (id: string, dias: number): Promise<FichaRubro> => (modoDemo ? demo.rubro(id) : rpc("rubro", { p_id: id, dias })),
+  producto: (codigo: string): Promise<FichaProducto> => (modoDemo ? demo.producto(codigo) : rpc("producto", { p_codigo: codigo, dias: 90 })),
+  comparables: (limite: number): Promise<Comparable[]> => (modoDemo ? demo.comparables() : rpc("comparables", { dias: 90, limite })),
+  buscarProductos: (q: string): Promise<{ codigo: string; nombre: string }[]> => (modoDemo ? demo.buscarProductos(q) : rpc("buscar_productos", { q, limite: 8 })),
+  canalTelegram: async (): Promise<string | null> =>
+    modoDemo ? "https://t.me/ejemplo" : (await rest<{ valor: string }[]>("config?clave=eq.telegram_canal&select=valor"))[0]?.valor ?? null,
   municipalidades: (): Promise<Opcion[]> =>
     modoDemo ? demo.municipalidades() : rest("entidades?nombre=ilike.Municipalidad*&select=id,nombre&order=nombre&limit=400"),
 };

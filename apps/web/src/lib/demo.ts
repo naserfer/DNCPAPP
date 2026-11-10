@@ -1,5 +1,5 @@
 // Datos ficticios para desarrollar sin Supabase. NO son datos reales.
-import type { Compra, EstadoDatos, FichaEntidad, FichaProveedor, Novedades, Opcion, Periodo, Puesto, Resultado } from "./api";
+import type { Comparable, Compra, EstadoDatos, FichaProducto, FichaRubro, Rubro, FichaEntidad, FichaProveedor, Novedades, Opcion, Periodo, Puesto, Resultado } from "./api";
 
 const prov = [
   { ruc: "80000001-1", nombre: "PROVEEDOR EJEMPLO SOCIEDAD ANONIMA" },
@@ -23,7 +23,31 @@ const puestos: Puesto[] = [
   { id: "E2", nombre: ent[1].nombre, monto: 480_000_000, cantidad: 1, un_oferente: 0 },
 ];
 
+const comps: Comparable[] = [
+  { codigo: "84131602-001", nombre: "Seguro medico", unidad: "Unidad", instituciones: 9, precio_min: 9_600_000, precio_max: 25_700_000, precio_mediano: 16_000_000, monto: 41_000_000_000 },
+  { codigo: "43211503-001", nombre: "Computadora portátil - Intermedia", unidad: "Unidad", instituciones: 6, precio_min: 5_900_000, precio_max: 8_100_000, precio_mediano: 6_600_000, monto: 2_300_000_000 },
+  { codigo: "14111507-003", nombre: "Papel tamaño oficio", unidad: "Resma", instituciones: 14, precio_min: 31_000, precio_max: 52_000, precio_mediano: 38_500, monto: 310_000_000 },
+];
+
 export const demo = {
+  rubros: async (): Promise<Rubro[]> => [
+    { id: "84", monto: 41e9, compras: 22, productos: 3, instituciones: 18 }, { id: "51", monto: 33e9, compras: 140, productos: 85, instituciones: 9 },
+    { id: "72", monto: 21e9, compras: 31, productos: 12, instituciones: 25 }, { id: "43", monto: 6.2e9, compras: 120, productos: 40, instituciones: 31 },
+    { id: "47", monto: 0.9e9, compras: 310, productos: 60, instituciones: 44 },
+  ],
+  rubro: async (id: string): Promise<FichaRubro> => ({ id, desde: "2026-08-12T15:00:00Z", monto: 41e9, compras: 22, instituciones: 18,
+    productos: comps.map((c) => ({ codigo: c.codigo, nombre: c.nombre, monto: c.monto, compras: 12, instituciones: c.instituciones })),
+    top_entidades: puestos, top_proveedores: prov.map((p, i) => ({ id: p.ruc, nombre: p.nombre, monto: [8.4e9, 1.43e9][i], cantidad: [1, 4][i] })) }),
+  producto: async (codigo: string): Promise<FichaProducto> => {
+    const c = comps.find((x) => x.codigo === codigo) ?? comps[0];
+    return { codigo: c.codigo, nombre: c.nombre, desde: "2026-08-12T15:00:00Z", unidad: c.unidad, otras_unidades: 1, compras: 11, monto: c.monto,
+      precio_min: c.precio_min, precio_max: c.precio_max, precio_mediano: c.precio_mediano,
+      instituciones: [c.precio_max, c.precio_mediano * 1.2, c.precio_mediano, c.precio_min].map((precio, i) => ({
+        id: ent[i % 3].id, nombre: ent[i % 3].nombre, precio, cantidad: [350, 120, 900, 60][i], monto: precio * [350, 120, 900, 60][i], compras: 1,
+        fecha: "2026-10-2" + i + "T15:00:00Z", proveedor_nombre: prov[i % 2].nombre, proveedor_ruc: prov[i % 2].ruc, url_dncp: url })) };
+  },
+  comparables: async (): Promise<Comparable[]> => comps,
+  buscarProductos: async (q: string) => comps.filter((c) => c.nombre.toLowerCase().includes(q.toLowerCase())).map((c) => ({ codigo: c.codigo, nombre: c.nombre })),
   periodo: async (): Promise<Periodo> => ({
     desde: "2026-11-03T15:00:00Z", hasta: "2026-11-10T15:00:00Z", adjudicaciones: 212, monto_total: 9_789_000_000, monto_anterior: 7_300_000_000, anterior_completo: true,
     instituciones: 41, proveedores: 87, un_solo_oferente: 5, con_dato_oferentes: 20, monto_un_oferente: 8_400_000_000, actualizado: "2026-11-10T15:00:00Z",

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { api, modoDemo, type Compra, type EstadoDatos, type FichaEntidad, type FichaProveedor, type Novedades, type Opcion, type Periodo, type Puesto, type Resultado } from "./lib/api";
+import { api, modoDemo, type Comparable, type Compra, type EstadoDatos, type FichaProducto, type FichaRubro, type Rubro, type FichaEntidad, type FichaProveedor, type Novedades, type Opcion, type Periodo, type Puesto, type Resultado } from "./lib/api";
+import { nombreRubro } from "./lib/rubros";
 import { SALARIO_MINIMO, diaCorto, enSalarios, entero, formatearFecha, formatearMonto, haceCuanto, montoCorto, montoEnUnidadDe, nombreEntidad, nombreLindo, tituloLimpio } from "./lib/format";
 
 // ---------- Rutas (History API) ----------
@@ -8,6 +9,8 @@ const ruta = {
   buscar: (q: string) => `/buscar/${encodeURIComponent(q)}`,
   proveedor: (ruc: string) => `/proveedor/${encodeURIComponent(ruc)}`,
   entidad: (id: string) => `/entidad/${encodeURIComponent(id)}`,
+  rubro: (id: string) => `/rubro/${encodeURIComponent(id)}`,
+  producto: (codigo: string) => `/producto/${encodeURIComponent(codigo)}`,
 };
 
 function ir(destino: string) {
@@ -114,9 +117,9 @@ function Buscador({ inicial = "" }: { inicial?: string }) {
   const enviar = (e: FormEvent) => { e.preventDefault(); if (q.trim()) ir(ruta.buscar(q.trim())); };
   return (
     <form onSubmit={enviar} role="search" className="buscador">
-      <label htmlFor="q" className="sr-only">Buscar institución, empresa o RUC</label>
+      <label htmlFor="q" className="sr-only">Buscar institución, empresa, producto o RUC</label>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-      <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Institución, empresa o RUC" autoComplete="off" enterKeyHint="search" />
+      <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Institución, empresa, producto o RUC" autoComplete="off" enterKeyHint="search" />
       <button type="submit" className="btn primario">Buscar</button>
     </form>
   );
@@ -334,7 +337,9 @@ function Inicio() {
         )}
       </Estado>
 
+      <Comparables limite={3} titulo="¿Quién paga más por lo mismo?" />
       {!fijada && <ElegirMunicipalidad elegir={setFijada} />}
+      <BotonTelegram />
     </>
   );
 }
@@ -425,17 +430,172 @@ function NotaDatos() {
   );
 }
 
+// ---------- Rubros y precios ----------
+const veces2 = (max: number | null, min: number | null) => (max && min && min > 0 ? max / min : null);
+const nVeces = (v: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1 }).format(v);
+
+function TarjetaComparable({ c }: { c: Comparable }) {
+  const v = veces2(c.precio_max, c.precio_min);
+  return (
+    <a className="tarjeta comparable" href={ruta.producto(c.codigo)}>
+      <h3>{nombreLindo(c.nombre.toUpperCase())}</h3>
+      <p className="rango"><span>{formatearMonto(Math.round(c.precio_min))}</span><span className="hasta" aria-hidden="true">→</span><span>{formatearMonto(Math.round(c.precio_max))}</span></p>
+      <p className="meta">por {(c.unidad ?? "unidad").toLowerCase()} · {veces(c.instituciones, "institución", "instituciones")}{v ? <> · <strong>{nVeces(v)} veces</strong> entre la que menos y la que más pagó</> : null}</p>
+    </a>
+  );
+}
+
+function Comparables({ limite, titulo }: { limite: number; titulo: string }) {
+  const { datos } = useCarga<Comparable[]>(() => api.comparables(limite), [limite]);
+  if (!datos?.length) return null;
+  return (
+    <section className="bloque" aria-labelledby="t-precios">
+      <h2 id="t-precios">{titulo}</h2>
+      <p className="intro">El mismo producto del catálogo, comprado por instituciones distintas. La marca, la calidad, la cantidad y el flete pueden explicar parte de la diferencia.</p>
+      <div className="lista-tarjetas">{datos.map((c) => <TarjetaComparable key={c.codigo} c={c} />)}</div>
+      {limite <= 3 && <p className="mas"><a className="btn" href="/rubros">Ver más precios y rubros →</a></p>}
+    </section>
+  );
+}
+
+function PaginaRubros() {
+  useTitulo("Rubros y precios");
+  const [dias, setDias] = useState(30);
+  const { cargando, datos, error } = useCarga<Rubro[]>(() => api.rubros(dias), [dias]);
+  return (
+    <section className="pagina">
+      <a href="/" className="volver">← Inicio</a>
+      <p className="etiqueta">Rubros</p>
+      <h1 className="titulo-ficha">En qué se gasta</h1>
+      <p className="resumen-ficha">Las compras agrupadas por rubro del catálogo oficial. Tocá uno para ver qué se compró, quién y a quién.</p>
+      <div className="filtros">
+        <div className="lapso" role="group" aria-label="Período">
+          {[30, 90].map((d) => <button key={d} type="button" aria-pressed={dias === d} onClick={() => setDias(d)}>{d} días</button>)}
+        </div>
+      </div>
+      <Estado cargando={cargando} error={error} vacio={datos?.length === 0} textoVacio="Todavía estamos cargando el detalle de productos. Volvé en unas horas.">
+        {datos && <Ranking items={datos.slice(0, 25).map((r) => ({ k: r.id, href: ruta.rubro(r.id), nombre: nombreRubro(r.id), monto: r.monto,
+          detalle: `${montoCorto(r.monto)} · ${veces(r.productos, "producto", "productos")} · ${veces(r.instituciones, "institución", "instituciones")}` }))} />}
+      </Estado>
+      <Comparables limite={12} titulo="¿Quién paga más por lo mismo?" />
+      <NotaDatos />
+    </section>
+  );
+}
+
+function PaginaRubro({ id }: { id: string }) {
+  const nombre = nombreRubro(id);
+  useTitulo(nombre);
+  const [dias, setDias] = useState(30);
+  const { cargando, datos: r, error } = useCarga<FichaRubro>(() => api.rubro(id, dias), [id, dias]);
+  return (
+    <section className="pagina">
+      <a href="/rubros" className="volver">← Rubros</a>
+      <p className="etiqueta">Rubro {id}</p>
+      <h1 className="titulo-ficha">{nombre}</h1>
+      <div className="filtros">
+        <div className="lapso" role="group" aria-label="Período">
+          {[30, 90].map((d) => <button key={d} type="button" aria-pressed={dias === d} onClick={() => setDias(d)}>{d} días</button>)}
+        </div>
+      </div>
+      <Estado cargando={cargando} error={error} vacio={!!r && r.compras === 0} textoVacio="No registramos compras de este rubro en el período.">
+        {r && r.compras > 0 && (
+          <>
+            <p className="resumen-ficha">El Estado compró <mark>{montoCorto(r.monto)}</mark> en este rubro desde el {formatearFecha(r.desde)}, en {veces(r.compras, "ítem", "ítems")} de {veces(r.instituciones, "institución", "instituciones")}.</p>
+            <div className="acciones"><Compartir camino={ruta.rubro(id)} texto={`El Estado paraguayo compró ${montoCorto(r.monto)} en ${nombre.toLowerCase()} desde el ${formatearFecha(r.desde)}.`} /></div>
+            <Ranking titulo="Qué se compró" items={r.productos.map((p) => ({ k: p.codigo, href: ruta.producto(p.codigo), nombre: nombreLindo(p.nombre.toUpperCase()), monto: p.monto,
+              detalle: `${montoCorto(p.monto)} · ${veces(p.instituciones, "institución", "instituciones")}` }))} />
+            <div className="rankings">
+              <Ranking titulo="Quién compró" items={aRanking(r.top_entidades, "entidad")} />
+              <Ranking titulo="A quién" items={aRanking(r.top_proveedores, "proveedor")} />
+            </div>
+          </>
+        )}
+      </Estado>
+      <NotaDatos />
+    </section>
+  );
+}
+
+function PaginaProducto({ codigo }: { codigo: string }) {
+  const { cargando, datos: p, error } = useCarga<FichaProducto>(() => api.producto(codigo), [codigo]);
+  const nombre = p ? nombreLindo(p.nombre.toUpperCase()) : "Producto";
+  useTitulo(nombre);
+  const v = p ? veces2(p.precio_max, p.precio_min) : null;
+  const unidad = (p?.unidad ?? "unidad").toLowerCase();
+  const max = Math.max(...(p?.instituciones.map((i) => i.precio) ?? [1]), 1);
+  return (
+    <section className="pagina">
+      <a href={ruta.rubro(codigo.slice(0, 2))} className="volver">← {nombreRubro(codigo.slice(0, 2))}</a>
+      <Estado cargando={cargando} error={error} vacio={!cargando && (!p || p.instituciones.length === 0)} textoVacio="Todavía no tenemos compras de este producto con precio en guaraníes.">
+        {p && p.instituciones.length > 0 && (
+          <>
+            <p className="etiqueta">Producto · código {p.codigo}</p>
+            <h1 className="titulo-ficha">{nombre}</h1>
+            <p className="resumen-ficha">
+              {p.instituciones.length > 1 ? <>
+                {veces(p.instituciones.length, "institución lo compró", "instituciones lo compraron")} desde el {formatearFecha(p.desde)}. Pagaron entre <mark>{formatearMonto(Math.round(p.precio_min ?? 0))}</mark> y <mark>{formatearMonto(Math.round(p.precio_max ?? 0))}</mark> por {unidad}.
+                {v && v >= 1.2 && <> La que más pagó, pagó {nVeces(v)} veces lo que la que menos.</>}
+              </> : <>Una institución lo compró desde el {formatearFecha(p.desde)}, a {formatearMonto(Math.round(p.precio_max ?? 0))} por {unidad}.</>}
+            </p>
+            <div className="acciones">
+              <Compartir camino={ruta.producto(p.codigo)} texto={p.instituciones.length > 1
+                ? `${nombre}: las instituciones públicas pagaron entre ${formatearMonto(Math.round(p.precio_min ?? 0))} y ${formatearMonto(Math.round(p.precio_max ?? 0))} por ${unidad}.`
+                : `${nombre}: el Estado lo compró a ${formatearMonto(Math.round(p.precio_max ?? 0))} por ${unidad}.`} />
+            </div>
+            <h2 className="sub">Precio por {unidad}, de mayor a menor</h2>
+            <ol className="precios">
+              {p.instituciones.map((i) => (
+                <li key={i.id}>
+                  <div className="fila">
+                    <a className="nombre" href={ruta.entidad(i.id)}>{nombreEntidad(i.nombre)}</a>
+                    <strong>{formatearMonto(Math.round(i.precio))}</strong>
+                  </div>
+                  <span className="barra" aria-hidden="true"><span style={{ width: `${Math.max((i.precio / max) * 100, 2)}%` }} /></span>
+                  <p className="meta">
+                    {entero(i.cantidad)} {i.cantidad === 1 ? "unidad" : "unidades"} · {montoCorto(i.monto)} · {formatearFecha(i.fecha)}
+                    {i.proveedor_ruc && <> · <a href={ruta.proveedor(i.proveedor_ruc)}>{nombreLindo(i.proveedor_nombre)}</a></>}
+                    {i.url_dncp && <> · <a href={i.url_dncp} target="_blank" rel="noopener noreferrer">DNCP ↗</a></>}
+                  </p>
+                </li>
+              ))}
+            </ol>
+            <p className="nota">
+              Se compara la misma unidad de medida ({unidad}){p.otras_unidades > 0 && `; dejamos fuera ${p.otras_unidades === 1 ? "otra presentación" : `otras ${p.otras_unidades} presentaciones`}`}.
+              Es el precio promedio que pagó cada institución en el período. La marca, la calidad, la cantidad, el plazo de entrega y el flete pueden explicar diferencias: no implica una irregularidad.
+            </p>
+          </>
+        )}
+      </Estado>
+      <NotaDatos />
+    </section>
+  );
+}
+
+function BotonTelegram() {
+  const { datos: canal } = useCarga<string | null>(() => api.canalTelegram().catch(() => null), []);
+  if (!canal) return null;
+  return (
+    <section className="bloque avisos" aria-labelledby="t-avisos">
+      <h2 id="t-avisos">Recibí el resumen cada lunes</h2>
+      <p className="intro">Un mensaje por semana en nuestro canal de Telegram, con la compra más grande y los datos principales. Sin registrarte en este sitio.</p>
+      <a className="btn primario" href={canal} target="_blank" rel="noopener noreferrer">Seguir en Telegram ↗</a>
+    </section>
+  );
+}
+
 // ---------- Búsqueda ----------
 function Busqueda({ q }: { q: string }) {
   useTitulo(`Buscar “${q}”`);
   const { cargando, datos, error } = useCarga(() => api.buscar(q), [q]);
+  const productos = useCarga(() => api.buscarProductos(q).catch(() => []), [q]);
   return (
     <section className="pagina">
       <a href="/" className="volver">← Inicio</a>
       <Buscador inicial={q} />
       <h1 className="titulo-pagina">{datos ? veces(datos.length, "resultado", "resultados") : "Resultados"} para “{q}”</h1>
       <Estado cargando={cargando} error={error} vacio={datos?.length === 0}
-        textoVacio="No encontramos nada con ese nombre. Probá con otra palabra, con la sigla (IPS, ANDE) o con el RUC.">
+        textoVacio={productos.datos?.length ? "No hay instituciones ni proveedores con ese nombre." : "No encontramos nada con ese nombre. Probá con otra palabra, con la sigla (IPS, ANDE) o con el RUC."}>
         {datos && (
           <ul className="resultados">
             {datos.map((r: Resultado) => (
@@ -451,7 +611,24 @@ function Busqueda({ q }: { q: string }) {
           </ul>
         )}
       </Estado>
-      {datos?.length === 0 && <Chips />}
+      {!!productos.datos?.length && (
+        <>
+          <h2 className="sub">Productos que compró el Estado</h2>
+          <ul className="resultados">
+            {productos.datos.map((p) => (
+              <li key={p.codigo}>
+                <a href={ruta.producto(p.codigo)}>
+                  <span className="etiqueta">Producto</span>
+                  <span className="nombre">{nombreLindo(p.nombre.toUpperCase())}</span>
+                  <span className="meta">Compará qué pagó cada institución</span>
+                  <span className="flecha" aria-hidden="true">→</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {datos?.length === 0 && !productos.datos?.length && <Chips />}
     </section>
   );
 }
@@ -587,6 +764,9 @@ export default function App() {
   else if (seg === "proveedor" && arg) vista = <Proveedor ruc={arg} />;
   else if (seg === "entidad" && arg) vista = <Entidad id={arg} />;
   else if (seg === "ranking") vista = <PaginaRanking />;
+  else if (seg === "rubros") vista = <PaginaRubros />;
+  else if (seg === "rubro" && arg) vista = <PaginaRubro id={arg} />;
+  else if (seg === "producto" && arg) vista = <PaginaProducto codigo={arg} />;
   else vista = <NoEncontrada />;
 
   return (
@@ -598,6 +778,7 @@ export default function App() {
           <span>Contratos <mark>Abiertos</mark></span>
         </a>
         <nav aria-label="Secciones">
+          <a href="/rubros" aria-current={seg === "rubros" || seg === "rubro" || seg === "producto" ? "page" : undefined}>Rubros</a>
           <a href="/ranking" aria-current={seg === "ranking" ? "page" : undefined}>Ranking</a>
           <button className="tema" onClick={alternarTema} aria-label="Cambiar entre modo claro y oscuro" title="Modo claro / oscuro">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg>
