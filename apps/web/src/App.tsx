@@ -1,19 +1,42 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { api, modoDemo, type Adjudicacion, type Proceso, type Resultado, type Resumen, type Semanal, type Altas } from "./lib/api";
-import { formatearCompacto, formatearFecha, formatearMonto } from "./lib/format";
+import { api, modoDemo, type Adjudicacion, type Compra, type FichaEntidad, type Opcion, type Periodo, type Resultado, type Resumen } from "./lib/api";
+import { enSalarios, entero, formatearFecha, formatearMonto, montoCorto, nombreLindo } from "./lib/format";
 
-function useRuta() {
-  const leer = () => decodeURIComponent(location.hash.replace(/^#/, "")) || "/";
-  const [ruta, setRuta] = useState(leer);
-  useEffect(() => {
-    const f = () => { setRuta(leer()); window.scrollTo(0, 0); };
-    addEventListener("hashchange", f);
-    return () => removeEventListener("hashchange", f);
-  }, []);
-  return ruta;
+// ---------- Rutas (History API) ----------
+const SITIO = "https://contratos-abiertos.pages.dev";
+const ruta = {
+  buscar: (q: string) => `/buscar/${encodeURIComponent(q)}`,
+  proveedor: (ruc: string) => `/proveedor/${encodeURIComponent(ruc)}`,
+  entidad: (id: string) => `/entidad/${encodeURIComponent(id)}`,
+};
+
+function ir(destino: string) {
+  history.pushState(null, "", destino);
+  dispatchEvent(new PopStateEvent("popstate"));
+  scrollTo(0, 0);
 }
 
-const ir = (r: string) => { location.hash = encodeURIComponent(r).replace(/%2F/g, "/"); };
+function useRuta() {
+  const [r, setR] = useState(() => {
+    // enlaces viejos con #/ siguen funcionando
+    if (location.hash.startsWith("#/")) history.replaceState(null, "", location.hash.slice(1));
+    return location.pathname;
+  });
+  useEffect(() => {
+    const cambio = () => setR(location.pathname);
+    const clic = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element).closest?.("a");
+      if (!a || a.target || a.origin !== location.origin || !a.getAttribute("href")?.startsWith("/")) return;
+      e.preventDefault();
+      if (a.pathname !== location.pathname) ir(a.pathname);
+    };
+    addEventListener("popstate", cambio);
+    document.addEventListener("click", clic);
+    return () => { removeEventListener("popstate", cambio); document.removeEventListener("click", clic); };
+  }, []);
+  return r;
+}
 
 function useCarga<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [estado, setEstado] = useState<{ cargando: boolean; datos?: T; error?: boolean }>({ cargando: true });
@@ -28,154 +51,90 @@ function useCarga<T>(fn: () => Promise<T>, deps: unknown[]) {
   return estado;
 }
 
-function alternarTema() {
-  const oscuro = document.documentElement.classList.toggle("dark");
-  try { localStorage.setItem("tema", oscuro ? "oscuro" : "claro"); } catch { /* sin storage */ }
+function useTitulo(t?: string | null) {
+  useEffect(() => { document.title = t ? `${t} · Contratos Abiertos` : "Contratos Abiertos · En qué gasta el Estado paraguayo"; }, [t]);
 }
+
+// ---------- Preferencias locales ----------
+const guardado = {
+  leer<T>(k: string): T | null { try { return JSON.parse(localStorage.getItem(k) ?? "null"); } catch { return null; } },
+  poner(k: string, v: unknown) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin storage */ } },
+};
+
+function useFijada() {
+  const [f, setF] = useState<Opcion | null>(() => guardado.leer<Opcion>("fijada"));
+  return [f, (v: Opcion | null) => { guardado.poner("fijada", v); setF(v); }] as const;
+}
+
+// ---------- Piezas ----------
+function Estado({ cargando, error, vacio, textoVacio, children }: { cargando: boolean; error?: boolean; vacio?: boolean; textoVacio?: string; children: ReactNode }) {
+  if (cargando) return <div className="esqueleto" role="status" aria-label="Cargando"><span /><span /><span /></div>;
+  if (error) return <p className="aviso" role="alert">No pudimos cargar los datos. Probá de nuevo en un momento.</p>;
+  if (vacio) return <p className="aviso">{textoVacio ?? "Todavía no hay datos para mostrar acá."}</p>;
+  return <>{children}</>;
+}
+
+const SUGERENCIAS = ["IPS", "ANDE", "Petropar", "Ministerio de Salud", "Municipalidad de Asunción", "Obras Públicas", "Educación", "Policía"];
 
 function Buscador({ inicial = "", grande = false }: { inicial?: string; grande?: boolean }) {
   const [q, setQ] = useState(inicial);
-  const enviar = (e: FormEvent) => {
-    e.preventDefault();
-    if (q.trim()) ir(`/buscar/${q.trim()}`);
-  };
+  useEffect(() => setQ(inicial), [inicial]);
+  const enviar = (e: FormEvent) => { e.preventDefault(); if (q.trim()) ir(ruta.buscar(q.trim())); };
   return (
     <form onSubmit={enviar} role="search" className={"buscador" + (grande ? " grande" : "")}>
-      <label htmlFor="q" className="sr-only">Buscar proveedor, RUC o institución</label>
-      <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre, RUC o institución" autoComplete="off" autoFocus={grande} />
-      <button type="submit">Buscar</button>
+      <label htmlFor="q" className="sr-only">Buscar institución, empresa o RUC</label>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscá una institución, empresa o RUC" autoComplete="off" enterKeyHint="search" />
+      <button type="submit" className="btn primario">Buscar</button>
     </form>
   );
 }
 
-function Estado({ cargando, error, vacio, children }: { cargando: boolean; error?: boolean; vacio?: boolean; children: ReactNode }) {
-  if (cargando) return <p className="aviso" role="status">Cargando…</p>;
-  if (error) return <p className="aviso" role="alert">No pudimos cargar los datos. Probá de nuevo en un momento.</p>;
-  if (vacio) return <p className="aviso">No encontramos resultados. Probá con otro nombre o con el RUC completo.</p>;
-  return <>{children}</>;
-}
-
-function Inicio() {
+function Compartir({ texto, camino }: { texto: string; camino: string }) {
+  const [copiado, setCopiado] = useState(false);
+  const enlace = SITIO + camino;
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(enlace); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch { /* sin permiso */ }
+  };
   return (
-    <section className="hero">
-      <h1>¿Cuánto y cómo contrata el Estado?</h1>
-      <p className="lead">Buscá una empresa o una institución y mirá sus contrataciones públicas, en lenguaje claro.</p>
-      <Buscador grande />
-      <ul className="pasos">
-        <li><strong>1</strong> Buscá por nombre o RUC</li>
-        <li><strong>2</strong> Mirá montos, fechas y cantidad de oferentes</li>
-        <li><strong>3</strong> Abrí el proceso oficial en la DNCP</li>
-      </ul>
-      <ResumenSemanal />
-      <AltasFuncionarios />
-      <BloqueArdentium />
-    </section>
+    <div className="compartir">
+      <a className="btn whatsapp" href={`https://wa.me/?text=${encodeURIComponent(`${texto}\n${enlace}`)}`} target="_blank" rel="noopener noreferrer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.7-5.1A8.5 8.5 0 1 1 21 11.5Z" /></svg>
+        Compartir por WhatsApp
+      </a>
+      <button type="button" className="btn" onClick={copiar}>{copiado ? "¡Copiado!" : "Copiar enlace"}</button>
+    </div>
   );
 }
 
-function ResumenSemanal() {
-  const { cargando, datos: r, error } = useCarga<Semanal>(() => api.resumenSemanal(), []);
-  const pct = r && r.con_dato_oferentes > 0 ? Math.round((r.un_solo_oferente / r.con_dato_oferentes) * 100) : null;
+function Oferentes({ c }: { c: Pick<Compra, "num_oferentes" | "convenio_marco"> }) {
+  if (c.convenio_marco) return <span className="pastilla suave">Convenio marco</span>;
+  if (c.num_oferentes == null) return null;
+  if (c.num_oferentes === 1) return <span className="pastilla alerta">1 solo oferente</span>;
+  return <span className="pastilla suave">{c.num_oferentes} oferentes</span>;
+}
+
+function TarjetaCompra({ c, destacada = false }: { c: Compra; destacada?: boolean }) {
   return (
-    <section className="semanal" aria-labelledby="t-semanal">
-      <div className="semanal-cab">
-        <h2 id="t-semanal">Resumen de la semana</h2>
-        {r && <p className="meta">{formatearFecha(r.desde)} – {formatearFecha(r.hasta)}</p>}
-      </div>
-      <Estado cargando={cargando} error={error} vacio={!!r && r.adjudicaciones === 0 && r.procesos_publicados === 0}>
-        {r && (
-          <>
-            <dl className="cifras">
-              <div><dt>Monto adjudicado</dt><dd>{formatearCompacto(r.monto_total)}</dd></div>
-              <div><dt>Adjudicaciones</dt><dd>{r.adjudicaciones}</dd></div>
-              <div><dt>Llamados publicados</dt><dd>{r.procesos_publicados}</dd></div>
-              <div>
-                <dt>Procesos con un solo oferente</dt>
-                <dd>{pct == null ? "—" : `${pct} %`}</dd>
-                {pct != null && <p className="meta">{r.un_solo_oferente} de {r.con_dato_oferentes} con dato</p>}
-              </div>
-            </dl>
-
-            <div className="rankings">
-              <Ranking titulo="Instituciones con más monto adjudicado"
-                items={r.top_entidades.map((e) => ({ k: e.id, href: `#/entidad/${e.id}`, nombre: e.nombre, monto: e.monto, n: e.cantidad }))} />
-              <Ranking titulo="Proveedores con más monto adjudicado"
-                items={r.top_proveedores.map((p) => ({ k: p.ruc, href: `#/proveedor/${p.ruc}`, nombre: p.nombre, monto: p.monto, n: p.cantidad }))} />
-            </div>
-
-            {r.mayores.length > 0 && (
-              <>
-                <h3 className="sub">Adjudicaciones más grandes</h3>
-                <ul className="tarjetas">
-                  {r.mayores.map((m, i) => (
-                    <li key={i}>
-                      <h3>{m.titulo}</h3>
-                      <p className="meta">
-                        {m.entidad_id ? <a href={`#/entidad/${m.entidad_id}`}>{m.entidad_nombre}</a> : "Institución sin dato"}
-                        {" → "}
-                        {m.proveedor_ruc ? <a href={`#/proveedor/${m.proveedor_ruc}`}>{m.proveedor_nombre}</a> : "proveedor sin dato"}
-                      </p>
-                      <p className="monto">{formatearMonto(m.monto)}</p>
-                      <p className="meta">{formatearFecha(m.fecha)} · <Oferentes n={m.num_oferentes} /></p>
-                      <EnlaceDncp url={m.url_dncp} />
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            <p className="nota">
-              Que un proceso tenga un solo oferente no implica por sí mismo una irregularidad; es un dato de contexto.
-              {r.actualizado && <> Datos actualizados al {formatearFecha(r.actualizado)}.</>}
-            </p>
-          </>
-        )}
-      </Estado>
-    </section>
+    <article className={"tarjeta" + (destacada ? " destacada" : "")}>
+      <p className="monto">{destacada ? montoCorto(c.monto) : formatearMonto(c.monto)}</p>
+      {destacada && c.monto != null && enSalarios(c.monto) && <p className="equivale">Equivale a {enSalarios(c.monto)}.</p>}
+      <h3>{c.titulo ?? "Compra sin descripción"}</h3>
+      <p className="quien">
+        {c.entidad_id && <a href={ruta.entidad(c.entidad_id)}>{c.entidad_nombre}</a>}
+        {c.entidad_id && c.proveedor_ruc !== undefined && <span aria-hidden="true"> → </span>}
+        {c.proveedor_ruc ? <a href={ruta.proveedor(c.proveedor_ruc)}>{nombreLindo(c.proveedor_nombre)}</a> : c.proveedor_ruc === null ? "Proveedor sin dato" : null}
+      </p>
+      <p className="pie-tarjeta">
+        <span>{formatearFecha(c.fecha)}</span>
+        <Oferentes c={c} />
+        {c.url_dncp && <a className="externo" href={c.url_dncp} target="_blank" rel="noopener noreferrer">Ver en la DNCP ↗</a>}
+      </p>
+    </article>
   );
 }
 
-const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-
-function AltasFuncionarios() {
-  const { cargando, datos: a, error } = useCarga<Altas>(() => api.altasFuncionarios(), []);
-  const n = (v: number) => new Intl.NumberFormat("es-PY").format(v);
-  return (
-    <section className="semanal" aria-labelledby="t-altas">
-      <div className="semanal-cab">
-        <h2 id="t-altas">Nuevos funcionarios públicos</h2>
-        {a && <p className="meta">{MESES[a.mes - 1]} {a.anho}</p>}
-      </div>
-      {!cargando && !error && !a ? (
-        <p className="aviso">Estamos procesando la nómina oficial. Este resumen aparece cuando un mes completo está disponible.</p>
-      ) : (
-        <Estado cargando={cargando} error={error}>
-          {a && (
-            <>
-              <dl className="cifras">
-                <div><dt>Personas que ingresaron</dt><dd>{n(a.total)}</dd></div>
-                <div><dt>Contratadas</dt><dd>{n(a.contratados)}</dd></div>
-                <div><dt>Permanentes</dt><dd>{n(a.permanentes)}</dd></div>
-                <div><dt>Devengado en el mes</dt><dd>{formatearCompacto(a.devengado)}</dd></div>
-              </dl>
-              <Ranking titulo={`Instituciones con más ingresos en ${MESES[a.mes - 1]}`}
-                items={a.top.map((t) => ({ k: t.oee, href: "https://datos.sfp.gov.py/data/funcionarios", nombre: t.nombre, monto: t.altas,
-                  n: t.altas, detalle: `${n(t.altas)} ${t.altas === 1 ? "persona" : "personas"} · ${n(t.contratados)} contratadas · ${formatearCompacto(t.devengado)} devengado` }))} />
-              <p className="nota">
-                Personas con ingreso a la función pública en {a.anho} que figuran en la nómina de {MESES[a.mes - 1]} y no figuraban el mes anterior
-                en la misma institución. Fuente: nómina oficial de funcionarios (SICCA, Ministerio de Economía y Finanzas),
-                informada por cada institución; los datos pueden estar incompletos o corregirse después.
-                {a.sin_comparacion > 0 && <> {a.sin_comparacion} instituciones no se cuentan porque no informaron el mes anterior.</>}
-                {" "}<a href="https://datos.sfp.gov.py/data/funcionarios" target="_blank" rel="noopener noreferrer">Ver la nómina oficial ↗</a>
-              </p>
-            </>
-          )}
-        </Estado>
-      )}
-    </section>
-  );
-}
-
-type ItemRanking = { k: string; href: string; nombre: string; monto: number; n: number; detalle?: string };
+type ItemRanking = { k: string; href: string; nombre: string; monto: number; detalle: string };
 
 function Ranking({ titulo, items }: { titulo: string; items: ItemRanking[] }) {
   if (!items.length) return null;
@@ -184,11 +143,16 @@ function Ranking({ titulo, items }: { titulo: string; items: ItemRanking[] }) {
     <div className="ranking">
       <h3 className="sub">{titulo}</h3>
       <ol>
-        {items.map((i) => (
+        {items.map((i, n) => (
           <li key={i.k}>
-            <a href={i.href} {...(i.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{i.nombre}</a>
-            <span className="barra-fondo" aria-hidden="true"><span style={{ width: `${(i.monto / max) * 100}%` }} /></span>
-            <span className="meta">{i.detalle ?? `${formatearCompacto(i.monto)} · ${i.n} ${i.n === 1 ? "adjudicación" : "adjudicaciones"}`}</span>
+            <a href={i.href}>
+              <span className="puesto">{n + 1}</span>
+              <span className="cuerpo">
+                <span className="nombre">{i.nombre}</span>
+                <span className="barra" aria-hidden="true"><span style={{ width: `${Math.max((i.monto / max) * 100, 2)}%` }} /></span>
+                <span className="meta">{i.detalle}</span>
+              </span>
+            </a>
           </li>
         ))}
       </ol>
@@ -196,73 +160,193 @@ function Ranking({ titulo, items }: { titulo: string; items: ItemRanking[] }) {
   );
 }
 
+const veces = (n: number, uno: string, varios: string) => `${entero(n)} ${n === 1 ? uno : varios}`;
+
+// ---------- Portada ----------
+function Inicio() {
+  useTitulo(null);
+  const [dias, setDias] = useState(7);
+  const { cargando, datos: p, error } = useCarga<Periodo>(() => api.periodo(dias), [dias]);
+  const estrella = p?.mayores[0];
+  const lapso = dias === 7 ? "Esta semana" : "En los últimos 30 días";
+  const pct = p && p.con_dato_oferentes > 0 ? Math.round((p.un_solo_oferente / p.con_dato_oferentes) * 100) : null;
+
+  return (
+    <>
+      <section className="hero">
+        <div className="lapso" role="group" aria-label="Período">
+          <button type="button" aria-pressed={dias === 7} onClick={() => setDias(7)}>7 días</button>
+          <button type="button" aria-pressed={dias === 30} onClick={() => setDias(30)}>30 días</button>
+        </div>
+        <p className="antetitulo">{lapso} el Estado paraguayo adjudicó</p>
+        <h1 className="cifra">{p ? <mark>{montoCorto(p.monto_total)}</mark> : <span className="fantasma">Gs. 0.000 millones</span>}</h1>
+        {p && (
+          <p className="bajada">
+            {enSalarios(p.monto_total) && <>Eso equivale a <strong>{enSalarios(p.monto_total)}</strong>. </>}
+            Fueron {veces(p.adjudicaciones, "adjudicación", "adjudicaciones")} de {veces(p.instituciones, "institución", "instituciones")} a {veces(p.proveedores, "proveedor", "proveedores")}.
+          </p>
+        )}
+        <Buscador grande />
+        <ul className="chips" aria-label="Búsquedas sugeridas">
+          {SUGERENCIAS.map((s) => <li key={s}><a href={ruta.buscar(s)}>{s}</a></li>)}
+        </ul>
+      </section>
+
+      <Estado cargando={cargando} error={error} vacio={!!p && p.adjudicaciones === 0} textoVacio="Todavía no hay adjudicaciones cargadas en este período.">
+        {p && (
+          <>
+            {estrella && (
+              <section className="bloque" aria-labelledby="t-estrella">
+                <h2 id="t-estrella"><span className="num">01</span> La compra más grande</h2>
+                <TarjetaCompra c={estrella} destacada />
+                <Compartir camino={estrella.entidad_id ? ruta.entidad(estrella.entidad_id) : "/"}
+                  texto={`${estrella.entidad_nombre ?? "El Estado"} adjudicó ${montoCorto(estrella.monto)} a ${nombreLindo(estrella.proveedor_nombre) || "un proveedor"}: ${estrella.titulo ?? "compra pública"}.`} />
+              </section>
+            )}
+
+            {p.un_oferente.length > 0 && (
+              <section className="bloque" aria-labelledby="t-uno">
+                <h2 id="t-uno"><span className="num">02</span> Se presentó uno solo</h2>
+                <p className="intro">
+                  {pct != null && <>En <strong>{pct} %</strong> de los procesos con dato hubo un único oferente ({p.un_solo_oferente} de {p.con_dato_oferentes}), por {montoCorto(p.monto_un_oferente)}. </>}
+                  Que haya un solo oferente no implica una irregularidad: es un dato para mirar con atención.
+                </p>
+                <div className="lista-tarjetas">{p.un_oferente.map((c, i) => <TarjetaCompra key={i} c={c} />)}</div>
+              </section>
+            )}
+
+            <section className="bloque" aria-labelledby="t-quien">
+              <h2 id="t-quien"><span className="num">03</span> Quién compró y quién vendió</h2>
+              <div className="rankings">
+                <Ranking titulo="Instituciones que más adjudicaron" items={p.top_entidades.map((e) => ({
+                  k: e.id, href: ruta.entidad(e.id), nombre: e.nombre, monto: e.monto,
+                  detalle: `${montoCorto(e.monto)} · ${veces(e.cantidad, "adjudicación", "adjudicaciones")}` }))} />
+                <Ranking titulo="Proveedores que más ganaron" items={p.top_proveedores.map((e) => ({
+                  k: e.ruc, href: ruta.proveedor(e.ruc), nombre: nombreLindo(e.nombre), monto: e.monto,
+                  detalle: `${montoCorto(e.monto)} · ${veces(e.cantidad, "adjudicación", "adjudicaciones")}` }))} />
+              </div>
+            </section>
+
+            {p.mayores.length > 1 && (
+              <section className="bloque" aria-labelledby="t-mas">
+                <h2 id="t-mas"><span className="num">04</span> Otras compras grandes</h2>
+                <div className="lista-tarjetas">{p.mayores.slice(1).map((c, i) => <TarjetaCompra key={i} c={c} />)}</div>
+              </section>
+            )}
+          </>
+        )}
+      </Estado>
+
+      <MiInstitucion />
+      {p?.actualizado && <p className="nota">Datos actualizados al {formatearFecha(p.actualizado)}. Los montos en otras monedas no se suman.</p>}
+    </>
+  );
+}
+
+function MiInstitucion() {
+  const [fijada, setFijada] = useFijada();
+  const munis = useCarga<Opcion[]>(() => (fijada ? Promise.resolve([]) : api.municipalidades()), [fijada?.id]);
+  const ficha = useCarga<FichaEntidad>(() => (fijada ? api.fichaEntidad(fijada.id) : Promise.resolve(null)), [fijada?.id]);
+  const f = ficha.datos;
+
+  return (
+    <section className="bloque mia" aria-labelledby="t-mia">
+      <h2 id="t-mia"><span className="num">05</span> {fijada ? "Tu institución" : "¿Y tu municipalidad?"}</h2>
+      {!fijada ? (
+        <>
+          <p className="intro">Elegí tu ciudad y mirá qué compró, a quién y por cuánto. Queda guardada en este dispositivo.</p>
+          <label htmlFor="muni" className="sr-only">Municipalidad</label>
+          <select id="muni" className="selector" value="" disabled={!munis.datos?.length}
+            onChange={(e) => { const m = munis.datos?.find((x) => x.id === e.target.value); if (m) setFijada(m); }}>
+            <option value="">{munis.cargando ? "Cargando municipalidades…" : "Elegí tu municipalidad"}</option>
+            {munis.datos?.map((m) => <option key={m.id} value={m.id}>{m.nombre.replace(/^Municipalidad de /i, "")}</option>)}
+          </select>
+        </>
+      ) : (
+        <Estado cargando={ficha.cargando} error={ficha.error}>
+          <div className="tarjeta destacada">
+            <h3 className="grande"><a href={ruta.entidad(fijada.id)}>{fijada.nombre}</a></h3>
+            {f && f.adjudicaciones > 0 ? (
+              <>
+                <p className="monto">{montoCorto(f.monto_total)}</p>
+                <p className="equivale">adjudicados en los últimos 12 meses, en {veces(f.adjudicaciones, "compra", "compras")} a {veces(f.proveedores, "proveedor", "proveedores")}.</p>
+              </>
+            ) : <p className="equivale">Todavía no tenemos adjudicaciones cargadas de esta institución.</p>}
+            <p className="pie-tarjeta">
+              <a className="btn primario" href={ruta.entidad(fijada.id)}>Ver sus compras</a>
+              <button type="button" className="btn" onClick={() => setFijada(null)}>Cambiar</button>
+            </p>
+          </div>
+        </Estado>
+      )}
+    </section>
+  );
+}
+
+// ---------- Búsqueda ----------
 function Busqueda({ q }: { q: string }) {
+  useTitulo(`Buscar “${q}”`);
   const { cargando, datos, error } = useCarga(() => api.buscar(q), [q]);
   return (
-    <section>
+    <section className="pagina">
       <Buscador inicial={q} />
-      <h2>Resultados para “{q}”</h2>
-      <Estado cargando={cargando} error={error} vacio={datos?.length === 0}>
-        <ul className="lista">
+      <h1 className="titulo-pagina">Resultados para “{q}”</h1>
+      <Estado cargando={cargando} error={error} vacio={datos?.length === 0}
+        textoVacio="No encontramos nada con ese nombre. Probá con otra palabra, con la sigla (IPS, ANDE) o con el RUC.">
+        <ul className="resultados">
           {datos?.map((r: Resultado) => (
             <li key={r.tipo + r.id}>
-              <a href={`#/${r.tipo}/${r.id}`}>
+              <a href={r.tipo === "proveedor" ? ruta.proveedor(r.id) : ruta.entidad(r.id)}>
                 <span className="etiqueta">{r.tipo === "proveedor" ? "Proveedor" : "Institución"}</span>
-                <span className="nombre">{r.nombre}</span>
+                <span className="nombre">{r.tipo === "proveedor" ? nombreLindo(r.nombre) : r.nombre}</span>
                 {r.tipo === "proveedor" && <span className="meta">RUC {r.id}</span>}
+                <span className="flecha" aria-hidden="true">→</span>
               </a>
             </li>
           ))}
         </ul>
       </Estado>
+      {datos?.length === 0 && <ul className="chips">{SUGERENCIAS.map((s) => <li key={s}><a href={ruta.buscar(s)}>{s}</a></li>)}</ul>}
     </section>
   );
 }
 
-function Oferentes({ n }: { n: number | null }) {
-  if (n == null) return <span>Oferentes: sin dato</span>;
-  return <span>{n} {n === 1 ? "oferente" : "oferentes"}</span>;
-}
-
-function EnlaceDncp({ url }: { url: string | null }) {
-  return url ? <a className="externo" href={url} target="_blank" rel="noreferrer noopener">Ver en la DNCP ↗</a> : null;
-}
-
+// ---------- Ficha de proveedor ----------
 function Proveedor({ ruc }: { ruc: string }) {
   const resumen = useCarga<Resumen | null>(() => api.resumenProveedor(ruc), [ruc]);
   const adjs = useCarga<Adjudicacion[]>(() => api.adjudicacionesProveedor(ruc), [ruc]);
   const r = resumen.datos;
+  const nombre = nombreLindo(r?.nombre);
+  useTitulo(r ? nombre : "Proveedor");
   return (
-    <section>
-      <a href="#/" className="volver">← Inicio</a>
-      <Estado cargando={resumen.cargando} error={resumen.error} vacio={!resumen.cargando && !r}>
+    <section className="pagina">
+      <a href="/" className="volver">← Inicio</a>
+      <Estado cargando={resumen.cargando} error={resumen.error} vacio={!resumen.cargando && !r} textoVacio="No encontramos un proveedor con ese RUC.">
         {r && (
           <>
-            <h1>{r.nombre}</h1>
-            <p className="meta">RUC {r.ruc}</p>
-            <dl className="cifras">
-              <div><dt>Adjudicaciones, últimos 12 meses</dt><dd>{r.adjudicaciones_12m}</dd></div>
-              <div><dt>Monto total (Gs.)</dt><dd>{formatearMonto(r.monto_pyg_12m)}</dd></div>
-              <div><dt>Última adjudicación</dt><dd>{formatearFecha(r.ultima_adjudicacion)}</dd></div>
-            </dl>
+            <p className="etiqueta">Proveedor del Estado · RUC {r.ruc}</p>
+            <h1 className="titulo-ficha">{nombre}</h1>
+            <p className="resumen-ficha">
+              Ganó <mark>{montoCorto(r.monto_pyg_12m)}</mark> en {veces(r.adjudicaciones_12m, "adjudicación", "adjudicaciones")} durante los últimos 12 meses.
+              {r.ultima_adjudicacion && <> La última fue el {formatearFecha(r.ultima_adjudicacion)}.</>}
+            </p>
+            <Compartir camino={ruta.proveedor(r.ruc)} texto={`${nombre} ganó ${montoCorto(r.monto_pyg_12m)} en contratos con el Estado en los últimos 12 meses.`} />
           </>
         )}
       </Estado>
       {r && (
         <>
-          <h2>Adjudicaciones recientes</h2>
+          <h2 className="sub">Sus adjudicaciones</h2>
           <Estado cargando={adjs.cargando} error={adjs.error} vacio={adjs.datos?.length === 0}>
-            <ul className="tarjetas">
-              {adjs.datos?.map((a) => (
-                <li key={a.id}>
-                  <h3>{a.procesos?.titulo ?? "Proceso sin título"}</h3>
-                  {a.procesos?.entidades && <p><a href={`#/entidad/${a.procesos.entidades.id}`}>{a.procesos.entidades.nombre}</a></p>}
-                  <p className="monto">{formatearMonto(a.monto, a.moneda ?? "PYG")}</p>
-                  <p className="meta">{formatearFecha(a.fecha)} · {a.procesos?.modalidad ?? "Modalidad sin dato"} · <Oferentes n={a.num_oferentes} /></p>
-                  <EnlaceDncp url={a.procesos?.url_dncp ?? null} />
-                </li>
-              ))}
-            </ul>
+            <div className="lista-tarjetas">
+              {adjs.datos?.map((a) => {
+                const quien = a.comprador ?? a.procesos?.entidades ?? null;
+                return <TarjetaCompra key={a.id} c={{
+                  titulo: a.convenio_marco ? a.detalle ?? a.procesos?.titulo ?? null : a.procesos?.titulo ?? null,
+                  monto: a.monto, fecha: a.fecha, num_oferentes: a.num_oferentes, convenio_marco: a.convenio_marco,
+                  url_dncp: a.procesos?.url_dncp ?? null, entidad_id: quien?.id, entidad_nombre: quien?.nombre }} />;
+              })}
+            </div>
           </Estado>
         </>
       )}
@@ -270,62 +354,63 @@ function Proveedor({ ruc }: { ruc: string }) {
   );
 }
 
+// ---------- Ficha de institución ----------
 function Entidad({ id }: { id: string }) {
-  const ent = useCarga(() => api.entidad(id), [id]);
-  const procs = useCarga<Proceso[]>(() => api.procesosEntidad(id), [id]);
+  const { cargando, datos: f, error } = useCarga<FichaEntidad>(() => api.fichaEntidad(id), [id]);
+  const [fijada, setFijada] = useFijada();
+  useTitulo(f?.nombre ?? "Institución");
+  const pct = f && f.con_dato_oferentes > 0 ? Math.round((f.un_solo_oferente / f.con_dato_oferentes) * 100) : null;
   return (
-    <section>
-      <a href="#/" className="volver">← Inicio</a>
-      <Estado cargando={ent.cargando} error={ent.error} vacio={!ent.cargando && !ent.datos}>
-        {ent.datos && <h1>{ent.datos.nombre}</h1>}
+    <section className="pagina">
+      <a href="/" className="volver">← Inicio</a>
+      <Estado cargando={cargando} error={error} vacio={!cargando && !f} textoVacio="No encontramos esa institución.">
+        {f && (
+          <>
+            <p className="etiqueta">Institución pública</p>
+            <h1 className="titulo-ficha">{f.nombre}</h1>
+            {f.adjudicaciones > 0 ? (
+              <p className="resumen-ficha">
+                Adjudicó <mark>{montoCorto(f.monto_total)}</mark> en {veces(f.adjudicaciones, "compra", "compras")} a {veces(f.proveedores, "proveedor", "proveedores")} durante los últimos 12 meses.
+                {enSalarios(f.monto_total) && <> Equivale a {enSalarios(f.monto_total)}.</>}
+                {pct != null && <> En {pct} % de los procesos con dato se presentó un solo oferente.</>}
+              </p>
+            ) : <p className="resumen-ficha">Todavía no tenemos adjudicaciones cargadas de esta institución en los últimos 12 meses.</p>}
+            <div className="acciones">
+              <Compartir camino={ruta.entidad(f.id)} texto={`${f.nombre} adjudicó ${montoCorto(f.monto_total)} en ${veces(f.adjudicaciones, "compra", "compras")} en los últimos 12 meses.`} />
+              <button type="button" className="btn" aria-pressed={fijada?.id === f.id}
+                onClick={() => setFijada(fijada?.id === f.id ? null : { id: f.id, nombre: f.nombre })}>
+                {fijada?.id === f.id ? "★ Fijada en tu inicio" : "☆ Fijar en mi inicio"}
+              </button>
+            </div>
+
+            <Ranking titulo="A quién le compró más" items={f.top_proveedores.map((p) => ({
+              k: p.ruc, href: ruta.proveedor(p.ruc), nombre: nombreLindo(p.nombre), monto: p.monto,
+              detalle: `${montoCorto(p.monto)} · ${veces(p.cantidad, "adjudicación", "adjudicaciones")}` }))} />
+
+            {f.recientes.length > 0 && (
+              <>
+                <h2 className="sub">Compras recientes</h2>
+                <div className="lista-tarjetas">{f.recientes.map((c, i) => <TarjetaCompra key={i} c={c} />)}</div>
+              </>
+            )}
+          </>
+        )}
       </Estado>
-      {ent.datos && (
-        <>
-          <h2>Procesos recientes</h2>
-          <Estado cargando={procs.cargando} error={procs.error} vacio={procs.datos?.length === 0}>
-            <ul className="tarjetas">
-              {procs.datos?.map((p) => (
-                <li key={p.ocid}>
-                  <h3>{p.titulo}</h3>
-                  <p className="monto">{formatearMonto(p.monto_estimado, p.moneda ?? "PYG")} <span className="meta">estimado</span></p>
-                  <p className="meta">{formatearFecha(p.fecha_publicacion)} · {p.modalidad ?? "Modalidad sin dato"} · {p.estado ?? "Estado sin dato"}</p>
-                  {p.adjudicaciones.map((a, i) => (
-                    <p key={i} className="meta">
-                      Adjudicado a {a.proveedores ? <a href={`#/proveedor/${a.proveedores.ruc}`}>{a.proveedores.nombre}</a> : "proveedor sin dato"} · {formatearMonto(a.monto, a.moneda ?? "PYG")} · <Oferentes n={a.num_oferentes} />
-                    </p>
-                  ))}
-                  <EnlaceDncp url={p.url_dncp} />
-                </li>
-              ))}
-            </ul>
-          </Estado>
-        </>
-      )}
     </section>
   );
 }
 
-const ARDENTIUM = "https://ardentium.tech/?utm_source=contratos-abiertos&utm_medium=referral";
-const enlaceArdentium = (campania: string) => `${ARDENTIUM}&utm_campaign=${campania}`;
-
-function BloqueArdentium() {
-  return (
-    <aside className="ardentium" aria-label="Sobre quién hizo este sitio">
-      <p className="etiqueta">Un proyecto de Ardentium</p>
-      <h2>Datos públicos convertidos en algo que cualquiera entiende.</h2>
-      <p className="meta">
-        Diseñamos y desarrollamos este sitio de forma independiente y gratuita. Si tu empresa necesita una plataforma,
-        un panel de datos o software a medida, hablemos.
-      </p>
-      <a className="boton" href={enlaceArdentium("bloque-portada")} target="_blank" rel="noopener">Conocé Ardentium ↗</a>
-    </aside>
-  );
+// ---------- Marco ----------
+function alternarTema() {
+  const oscuro = document.documentElement.classList.toggle("dark");
+  guardado.poner("tema", oscuro ? "oscuro" : "claro");
 }
 
 export default function App() {
-  const ruta = useRuta();
-  const [, seg, ...resto] = ruta.split("/");
-  const arg = resto.join("/");
+  const camino = useRuta();
+  const [, seg, ...resto] = camino.split("/");
+  let arg = resto.join("/");
+  try { arg = decodeURIComponent(arg); } catch { /* se usa tal cual */ }
   let vista: ReactNode = <Inicio />;
   if (seg === "buscar" && arg) vista = <Busqueda q={arg} />;
   else if (seg === "proveedor" && arg) vista = <Proveedor ruc={arg} />;
@@ -333,20 +418,22 @@ export default function App() {
 
   return (
     <>
-      <a href="#contenido" className="skip">Saltar al contenido</a>
-      <header className="barra">
-        <span className="marca">
-          <a href="#/" className="logo">Contratos Abiertos</a>
-          <a href={enlaceArdentium("encabezado")} target="_blank" rel="noopener" className="por">por Ardentium</a>
-        </span>
-        <button className="tema" onClick={alternarTema} aria-label="Cambiar entre tema claro y oscuro"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg></button>
+      <a href="#contenido" className="skip" target="_self">Saltar al contenido</a>
+      <header className="barra-sup">
+        <a href="/" className="logo" aria-label="Contratos Abiertos, inicio">
+          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor" /><rect x="7" y="17" width="18" height="7" rx="1.5" className="logo-marca" /><path d="M9 11h14" stroke="var(--bg)" strokeWidth="2.6" strokeLinecap="round" /></svg>
+          <span>Contratos <mark>Abiertos</mark></span>
+        </a>
+        <button className="tema" onClick={alternarTema} aria-label="Cambiar entre modo claro y oscuro" title="Modo claro / oscuro">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg>
+        </button>
       </header>
       {modoDemo && <p className="demo" role="note">Modo demostración: los datos que ves son ficticios.</p>}
       <main id="contenido">{vista}</main>
       <footer className="pie">
-        <p className="firma">Hecho en Asunción por <a href={enlaceArdentium("pie")} target="_blank" rel="noopener">Ardentium</a> · software a medida</p>
-        <p>Datos: Dirección Nacional de Contrataciones Públicas (DNCP), licencia CC BY 4.0. Este sitio es independiente y no está afiliado a la DNCP.</p>
-        <p>La información se muestra tal como la publica la DNCP, sin juicios de valor. Para el detalle y la versión oficial, abrí el proceso en el portal de la DNCP.</p>
+        <p>Datos abiertos de la Dirección Nacional de Contrataciones Públicas (DNCP), licencia CC BY 4.0. Sitio independiente, sin vínculo con la DNCP.</p>
+        <p>Mostramos la información tal como la publica la DNCP, sin juicios de valor. La versión oficial está en el enlace de cada compra. El equivalente en salarios mínimos usa Gs. 3.044.000 (vigente desde julio de 2026).</p>
+        <p className="firma">Hecho por <a href="https://ardentium.tech/?utm_source=contratos-abiertos&utm_medium=referral&utm_campaign=pie" target="_blank" rel="noopener">Ardentium</a></p>
       </footer>
     </>
   );
