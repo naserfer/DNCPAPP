@@ -126,27 +126,29 @@ function Chips() {
   return <ul className="chips" aria-label="Búsquedas sugeridas">{SUGERENCIAS.map((s) => <li key={s}><a href={ruta.buscar(s)}>{s}</a></li>)}</ul>;
 }
 
-// En el celular wa.me abre la app con el selector de contactos. En computadora la app de
-// escritorio ignora el texto si no hay número, así que se usa WhatsApp Web.
-function enlaceWhatsApp(mensaje: string) {
-  const movil = matchMedia("(pointer: coarse)").matches && innerWidth < 900;
-  const t = encodeURIComponent(mensaje);
-  return movil ? `https://wa.me/?text=${t}` : `https://web.whatsapp.com/send?text=${t}`;
-}
-
+// Compartir: primero el menú nativo del dispositivo (ahí se elige WhatsApp y el contacto, y funciona
+// igual en celular y computadora). Si el navegador no lo tiene, se abre WhatsApp con el mensaje.
 function Compartir({ texto, camino }: { texto: string; camino: string }) {
   const [copiado, setCopiado] = useState(false);
-  const enlace = SITIO + camino;
+  const mensaje = `${texto}\n${SITIO + camino}`;
+  const compartir = async () => {
+    if (typeof navigator.share === "function") {
+      try { await navigator.share({ text: mensaje }); return; }
+      catch (e) { if ((e as Error).name === "AbortError") return; }
+    }
+    const movil = matchMedia("(pointer: coarse)").matches;
+    window.open(`${movil ? "https://wa.me/?text=" : "https://web.whatsapp.com/send?text="}${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+  };
   const copiar = async () => {
-    try { await navigator.clipboard.writeText(enlace); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch { /* sin permiso */ }
+    try { await navigator.clipboard.writeText(mensaje); setCopiado(true); setTimeout(() => setCopiado(false), 2200); } catch { /* sin permiso */ }
   };
   return (
     <div className="compartir">
-      <a className="btn oscuro" href={enlaceWhatsApp(`${texto}\n${enlace}`)} target="_blank" rel="noopener noreferrer">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.7-5.1A8.5 8.5 0 1 1 21 11.5Z" /></svg>
-        Compartir por WhatsApp
-      </a>
-      <button type="button" className="btn" onClick={copiar} aria-live="polite">{copiado ? "¡Enlace copiado!" : "Copiar enlace"}</button>
+      <button type="button" className="btn oscuro" onClick={compartir}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M12 15V4" /><path d="M8 8l4-4 4 4" /></svg>
+        Compartir
+      </button>
+      <button type="button" className="btn" onClick={copiar} aria-live="polite">{copiado ? "¡Copiado! Pegalo donde quieras" : "Copiar mensaje"}</button>
     </div>
   );
 }
