@@ -42,3 +42,34 @@ export function nombreLindo(s: string | null | undefined): string {
   return s.toLowerCase().split(/(\s+|\+|\(|\))/).map((w, i) =>
     SIGLA.test(w) ? w.toUpperCase() : i > 0 && MINUS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join("");
 }
+
+const fDia = new Intl.DateTimeFormat("es-PY", { day: "numeric", month: "short" });
+export const diaCorto = (iso: string) => fDia.format(new Date(iso.length === 10 ? iso + "T12:00:00" : iso));
+
+/** "Rectorado / Universidad Nacional del Este" → "Universidad Nacional del Este (Rectorado)". */
+export function nombreEntidad(s: string | null | undefined): string {
+  if (!s) return "";
+  const partes = s.split(" / ").map((x) => x.trim()).filter(Boolean);
+  if (partes.length !== 2) return s;
+  return `${partes[1]} (${nombreLindo(partes[0].toUpperCase())})`;
+}
+
+const RUIDO = /^(plurianual|ad referendum.*|\d+\s*[°ºª]?\s*llamado|segundo llamado|tercer llamado|sbe|con id.*)$/i;
+const CODIGO = /^(LPN|LPI|LCO|CD|CVE|MCN|CO|LP|CE)\s*(SBE\s*)?(N[°ºro.]*\s*)?[\d/.-]+\s*[-–:.]?\s*/i;
+
+/** Quita jerga administrativa y mayúsculas sostenidas del título de un llamado. */
+export function tituloLimpio(t: string | null | undefined): string {
+  if (!t) return "Compra sin descripción";
+  let s = t.replace(/^Compra por convenio marco:\s*/i, "").replace(CODIGO, "").trim();
+  s = s.split(/\s+[-–]\s+/).filter((seg, i) => i === 0 || !RUIDO.test(seg.trim())).join(" – ");
+  s = s.replace(/\s+/g, " ").replace(/[.\s]+$/, "");
+  if (s.length > 12 && s === s.toUpperCase()) s = s.charAt(0) + s.slice(1).toLowerCase();
+  return s || "Compra sin descripción";
+}
+
+export function haceCuanto(desde: number): string {
+  const h = Math.round((Date.now() - desde) / 36e5);
+  if (h < 24) return `hace ${h} ${h === 1 ? "hora" : "horas"}`;
+  const d = Math.round(h / 24);
+  return `hace ${d} ${d === 1 ? "día" : "días"}`;
+}

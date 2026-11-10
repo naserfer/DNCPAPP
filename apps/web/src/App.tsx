@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { api, modoDemo, type Adjudicacion, type Compra, type FichaEntidad, type Opcion, type Periodo, type Resultado, type Resumen } from "./lib/api";
-import { enSalarios, entero, formatearFecha, formatearMonto, montoCorto, nombreLindo } from "./lib/format";
+import { api, modoDemo, type Compra, type EstadoDatos, type FichaEntidad, type FichaProveedor, type Novedades, type Opcion, type Periodo, type Puesto, type Resultado } from "./lib/api";
+import { diaCorto, enSalarios, entero, formatearFecha, formatearMonto, haceCuanto, montoCorto, nombreEntidad, nombreLindo, tituloLimpio } from "./lib/format";
 
 // ---------- Rutas (History API) ----------
 const SITIO = "https://contratos-abiertos.pages.dev";
@@ -18,8 +18,7 @@ function ir(destino: string) {
 
 function useRuta() {
   const [r, setR] = useState(() => {
-    // enlaces viejos con #/ siguen funcionando
-    if (location.hash.startsWith("#/")) history.replaceState(null, "", location.hash.slice(1));
+    if (location.hash.startsWith("#/")) history.replaceState(null, "", location.hash.slice(1)); // enlaces viejos
     return location.pathname;
   });
   useEffect(() => {
@@ -42,7 +41,7 @@ function useCarga<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [estado, setEstado] = useState<{ cargando: boolean; datos?: T; error?: boolean }>({ cargando: true });
   useEffect(() => {
     let vivo = true;
-    setEstado({ cargando: true });
+    setEstado((e) => ({ ...e, cargando: true, error: false }));
     fn().then((datos) => vivo && setEstado({ cargando: false, datos }))
         .catch(() => vivo && setEstado({ cargando: false, error: true }));
     return () => { vivo = false; };
@@ -55,7 +54,7 @@ function useTitulo(t?: string | null) {
   useEffect(() => { document.title = t ? `${t} · Contratos Abiertos` : "Contratos Abiertos · En qué gasta el Estado paraguayo"; }, [t]);
 }
 
-// ---------- Preferencias locales ----------
+// ---------- Preferencias locales (solo en este dispositivo) ----------
 const guardado = {
   leer<T>(k: string): T | null { try { return JSON.parse(localStorage.getItem(k) ?? "null"); } catch { return null; } },
   poner(k: string, v: unknown) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin storage */ } },
@@ -66,28 +65,44 @@ function useFijada() {
   return [f, (v: Opcion | null) => { guardado.poner("fijada", v); setF(v); }] as const;
 }
 
+/** Momento de la visita anterior (si fue hace más de 6 horas). Se actualiza una vez por sesión. */
+let visitaAnterior: number | null | undefined;
+function leerVisitaAnterior(): number | null {
+  if (visitaAnterior !== undefined) return visitaAnterior;
+  const previa = guardado.leer<number>("visita");
+  visitaAnterior = previa && Date.now() - previa > 6 * 36e5 ? previa : null;
+  guardado.poner("visita", Date.now());
+  return visitaAnterior;
+}
+
+const veces = (n: number, uno: string, varios: string) => `${entero(n)} ${n === 1 ? uno : varios}`;
+
 // ---------- Piezas ----------
 function Estado({ cargando, error, vacio, textoVacio, children }: { cargando: boolean; error?: boolean; vacio?: boolean; textoVacio?: string; children: ReactNode }) {
-  if (cargando) return <div className="esqueleto" role="status" aria-label="Cargando"><span /><span /><span /></div>;
-  if (error) return <p className="aviso" role="alert">No pudimos cargar los datos. Probá de nuevo en un momento.</p>;
+  if (error) return <p className="aviso" role="alert">No pudimos cargar los datos. Revisá tu conexión y probá de nuevo.</p>;
   if (vacio) return <p className="aviso">{textoVacio ?? "Todavía no hay datos para mostrar acá."}</p>;
-  return <>{children}</>;
+  if (cargando && !children) return <div className="esqueleto" role="status" aria-label="Cargando"><span /><span /></div>;
+  return <div className={cargando ? "refrescando" : undefined}>{children}</div>;
 }
 
 const SUGERENCIAS = ["IPS", "ANDE", "Petropar", "Ministerio de Salud", "Municipalidad de Asunción", "Obras Públicas", "Educación", "Policía"];
 
-function Buscador({ inicial = "", grande = false }: { inicial?: string; grande?: boolean }) {
+function Buscador({ inicial = "" }: { inicial?: string }) {
   const [q, setQ] = useState(inicial);
   useEffect(() => setQ(inicial), [inicial]);
   const enviar = (e: FormEvent) => { e.preventDefault(); if (q.trim()) ir(ruta.buscar(q.trim())); };
   return (
-    <form onSubmit={enviar} role="search" className={"buscador" + (grande ? " grande" : "")}>
+    <form onSubmit={enviar} role="search" className="buscador">
       <label htmlFor="q" className="sr-only">Buscar institución, empresa o RUC</label>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-      <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscá una institución, empresa o RUC" autoComplete="off" enterKeyHint="search" />
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+      <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Institución, empresa o RUC" autoComplete="off" enterKeyHint="search" />
       <button type="submit" className="btn primario">Buscar</button>
     </form>
   );
+}
+
+function Chips() {
+  return <ul className="chips" aria-label="Búsquedas sugeridas">{SUGERENCIAS.map((s) => <li key={s}><a href={ruta.buscar(s)}>{s}</a></li>)}</ul>;
 }
 
 // En el celular wa.me abre la app con el selector de contactos. En computadora la app de
@@ -106,37 +121,54 @@ function Compartir({ texto, camino }: { texto: string; camino: string }) {
   };
   return (
     <div className="compartir">
-      <a className="btn whatsapp" href={enlaceWhatsApp(`${texto}\n${enlace}`)} target="_blank" rel="noopener noreferrer">
+      <a className="btn oscuro" href={enlaceWhatsApp(`${texto}\n${enlace}`)} target="_blank" rel="noopener noreferrer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.7-5.1A8.5 8.5 0 1 1 21 11.5Z" /></svg>
         Compartir por WhatsApp
       </a>
-      <button type="button" className="btn" onClick={copiar}>{copiado ? "¡Copiado!" : "Copiar enlace"}</button>
+      <button type="button" className="btn" onClick={copiar} aria-live="polite">{copiado ? "¡Enlace copiado!" : "Copiar enlace"}</button>
     </div>
   );
 }
 
-function Oferentes({ c }: { c: Pick<Compra, "num_oferentes" | "convenio_marco"> }) {
-  if (c.convenio_marco) return <span className="pastilla suave">Convenio marco</span>;
-  if (c.num_oferentes == null) return null;
-  if (c.num_oferentes === 1) return <span className="pastilla alerta">1 solo oferente</span>;
-  return <span className="pastilla suave">{c.num_oferentes} oferentes</span>;
+function Titulo({ texto }: { texto: string | null }) {
+  const limpio = tituloLimpio(texto);
+  const [abierto, setAbierto] = useState(false);
+  const largo = limpio.length > 120;
+  return (
+    <h3 className="titulo-compra">
+      {largo && !abierto ? limpio.slice(0, 110).replace(/\s+\S*$/, "") + "… " : limpio + " "}
+      {largo && <button type="button" className="vermas" onClick={() => setAbierto(!abierto)} aria-expanded={abierto}>{abierto ? "ver menos" : "ver más"}</button>}
+    </h3>
+  );
 }
 
-function TarjetaCompra({ c, destacada = false }: { c: Compra; destacada?: boolean }) {
+function Pastillas({ c }: { c: Compra }) {
+  return (
+    <>
+      {c.num_oferentes === 1 && !c.convenio_marco && <span className="pastilla alerta">1 solo oferente</span>}
+      {c.num_oferentes != null && c.num_oferentes > 1 && !c.convenio_marco && <span className="pastilla">{c.num_oferentes} oferentes</span>}
+      {c.convenio_marco && <span className="pastilla">Convenio marco</span>}
+      {(c.compras ?? 1) > 1 && <span className="pastilla">{c.compras} compras</span>}
+    </>
+  );
+}
+
+function TarjetaCompra({ c, destacada = false, rotulo }: { c: Compra; destacada?: boolean; rotulo?: string }) {
   return (
     <article className={"tarjeta" + (destacada ? " destacada" : "")}>
-      <p className="monto">{destacada ? montoCorto(c.monto) : formatearMonto(c.monto)}</p>
+      {rotulo && <p className="rotulo">{rotulo}</p>}
+      <p className="monto" title={formatearMonto(c.monto)}>{montoCorto(c.monto)}</p>
       {destacada && c.monto != null && enSalarios(c.monto) && <p className="equivale">Equivale a {enSalarios(c.monto)}.</p>}
-      <h3>{c.titulo ?? "Compra sin descripción"}</h3>
+      <Titulo texto={c.titulo} />
       <p className="quien">
-        {c.entidad_id && <a href={ruta.entidad(c.entidad_id)}>{c.entidad_nombre}</a>}
+        {c.entidad_id && <a href={ruta.entidad(c.entidad_id)}>{nombreEntidad(c.entidad_nombre)}</a>}
         {c.entidad_id && c.proveedor_ruc !== undefined && <span aria-hidden="true"> → </span>}
         {c.proveedor_ruc ? <a href={ruta.proveedor(c.proveedor_ruc)}>{nombreLindo(c.proveedor_nombre)}</a> : c.proveedor_ruc === null ? "Proveedor sin dato" : null}
       </p>
       <p className="pie-tarjeta">
         <span>{formatearFecha(c.fecha)}</span>
-        <Oferentes c={c} />
-        {c.url_dncp && <a className="externo" href={c.url_dncp} target="_blank" rel="noopener noreferrer">Ver en la DNCP ↗</a>}
+        <Pastillas c={c} />
+        {c.url_dncp && <a className="externo" href={c.url_dncp} target="_blank" rel="noopener noreferrer">Ver en la DNCP <span aria-hidden="true">↗</span></a>}
       </p>
     </article>
   );
@@ -144,17 +176,17 @@ function TarjetaCompra({ c, destacada = false }: { c: Compra; destacada?: boolea
 
 type ItemRanking = { k: string; href: string; nombre: string; monto: number; detalle: string };
 
-function Ranking({ titulo, items }: { titulo: string; items: ItemRanking[] }) {
+function Ranking({ titulo, items }: { titulo?: string; items: ItemRanking[] }) {
   if (!items.length) return null;
   const max = Math.max(...items.map((i) => i.monto), 1);
   return (
     <div className="ranking">
-      <h3 className="sub">{titulo}</h3>
+      {titulo && <h3 className="sub">{titulo}</h3>}
       <ol>
         {items.map((i, n) => (
           <li key={i.k}>
             <a href={i.href}>
-              <span className="puesto">{n + 1}</span>
+              <span className="puesto" aria-hidden="true">{n + 1}</span>
               <span className="cuerpo">
                 <span className="nombre">{i.nombre}</span>
                 <span className="barra" aria-hidden="true"><span style={{ width: `${Math.max((i.monto / max) * 100, 2)}%` }} /></span>
@@ -168,126 +200,199 @@ function Ranking({ titulo, items }: { titulo: string; items: ItemRanking[] }) {
   );
 }
 
-const veces = (n: number, uno: string, varios: string) => `${entero(n)} ${n === 1 ? uno : varios}`;
+/** Barras simples. `resaltar` = cuántas barras del final van en color fuerte. */
+function Barras({ datos, resaltar, descripcion }: { datos: { etiqueta: string; monto: number }[]; resaltar?: number; descripcion: string }) {
+  const max = Math.max(...datos.map((d) => d.monto), 1);
+  const corte = datos.length - (resaltar ?? datos.length);
+  return (
+    <figure className="barras">
+      <div className="lienzo" role="img" aria-label={descripcion}>
+        {datos.map((d, i) => (
+          <span key={d.etiqueta + i} className={i >= corte ? "fuerte" : ""} title={`${d.etiqueta}: ${montoCorto(d.monto)}`}
+            style={{ height: `${d.monto > 0 ? Math.max((d.monto / max) * 100, 4) : 1.5}%` }} />
+        ))}
+      </div>
+      <figcaption><span>{datos[0]?.etiqueta}</span><span>{datos[datos.length - 1]?.etiqueta}</span></figcaption>
+    </figure>
+  );
+}
+
+function aRanking(p: Puesto[], tipo: "entidad" | "proveedor"): ItemRanking[] {
+  return p.map((e) => ({
+    k: e.id, href: tipo === "entidad" ? ruta.entidad(e.id) : ruta.proveedor(e.id),
+    nombre: tipo === "entidad" ? nombreEntidad(e.nombre) : nombreLindo(e.nombre), monto: e.monto,
+    detalle: `${montoCorto(e.monto)} · ${veces(e.cantidad, "adjudicación", "adjudicaciones")}` + (e.un_oferente ? ` · ${e.un_oferente} con un solo oferente` : ""),
+  }));
+}
 
 // ---------- Portada ----------
 function Inicio() {
   useTitulo(null);
   const [dias, setDias] = useState(7);
+  const [fijada, setFijada] = useFijada();
   const { cargando, datos: p, error } = useCarga<Periodo>(() => api.periodo(dias), [dias]);
-  const estrella = p?.mayores[0];
+  const previa = leerVisitaAnterior();
+  const nuevas = useCarga<Novedades | null>(() => (previa ? api.novedades(previa) : Promise.resolve(null)), [previa]);
+
   const lapso = dias === 7 ? "Esta semana" : "En los últimos 30 días";
-  const pct = p && p.con_dato_oferentes > 0 ? Math.round((p.un_solo_oferente / p.con_dato_oferentes) * 100) : null;
+  const anterior = dias === 7 ? "la semana anterior" : "los 30 días anteriores";
+  const cambio = p && p.anterior_completo && p.monto_anterior > 0 ? Math.round(((p.monto_total - p.monto_anterior) / p.monto_anterior) * 100) : null;
+  const pct = p && p.con_dato_oferentes >= 5 ? Math.round((p.un_solo_oferente / p.con_dato_oferentes) * 100) : null;
+  const estrella = p?.mayores[0];
+  const uno = p?.un_oferente.find((c) => c.titulo !== estrella?.titulo) ?? null;
+  const otras = p?.mayores.filter((c) => c !== estrella && c.titulo !== uno?.titulo).slice(0, 2) ?? [];
+  const serie = p?.serie.slice(-Math.min(p.serie.length, dias * 2)) ?? [];
 
   return (
     <>
       <section className="hero">
+        <p className="antetitulo">{lapso} el Estado paraguayo adjudicó</p>
+        <h1 className="cifra">{p ? <mark>{montoCorto(p.monto_total)}</mark> : <span className="fantasma">Gs. 0,0 mil millones</span>}</h1>
+        {p && (
+          <p className="bajada">
+            {enSalarios(p.monto_total) && <>Equivale a <strong>{enSalarios(p.monto_total)}</strong>. </>}
+            Fueron {veces(p.adjudicaciones, "adjudicación", "adjudicaciones")} de {veces(p.instituciones, "institución", "instituciones")} a {veces(p.proveedores, "proveedor", "proveedores")}.
+            {cambio != null && <> <span className="cambio">{cambio >= 0 ? "▲" : "▼"} {Math.abs(cambio)} % {cambio >= 0 ? "más" : "menos"} que {anterior}</span>.</>}
+          </p>
+        )}
+        {serie.length > 3 && (
+          <Barras resaltar={dias} datos={serie.map((d) => ({ etiqueta: diaCorto(d.dia), monto: d.monto }))}
+            descripcion={`Monto adjudicado por día. En color fuerte, ${dias === 7 ? "los últimos 7 días" : "los últimos 30 días"}.`} />
+        )}
         <div className="lapso" role="group" aria-label="Período">
           <button type="button" aria-pressed={dias === 7} onClick={() => setDias(7)}>7 días</button>
           <button type="button" aria-pressed={dias === 30} onClick={() => setDias(30)}>30 días</button>
         </div>
-        <p className="antetitulo">{lapso} el Estado paraguayo adjudicó</p>
-        <h1 className="cifra">{p ? <mark>{montoCorto(p.monto_total)}</mark> : <span className="fantasma">Gs. 0.000 millones</span>}</h1>
-        {p && (
-          <p className="bajada">
-            {enSalarios(p.monto_total) && <>Eso equivale a <strong>{enSalarios(p.monto_total)}</strong>. </>}
-            Fueron {veces(p.adjudicaciones, "adjudicación", "adjudicaciones")} de {veces(p.instituciones, "institución", "instituciones")} a {veces(p.proveedores, "proveedor", "proveedores")}.
+        {previa && nuevas.datos && nuevas.datos.adjudicaciones > 0 && (
+          <p className="novedad" role="status">
+            <strong>Desde tu última visita</strong> ({haceCuanto(previa)}): {veces(nuevas.datos.adjudicaciones, "adjudicación nueva", "adjudicaciones nuevas")} por {montoCorto(nuevas.datos.monto)}.
           </p>
         )}
-        <Buscador grande />
-        <ul className="chips" aria-label="Búsquedas sugeridas">
-          {SUGERENCIAS.map((s) => <li key={s}><a href={ruta.buscar(s)}>{s}</a></li>)}
-        </ul>
+        <Buscador />
+        <Chips />
       </section>
 
+      {fijada && <MiInstitucion fijada={fijada} cambiar={() => setFijada(null)} previa={previa} />}
+
       <Estado cargando={cargando} error={error} vacio={!!p && p.adjudicaciones === 0} textoVacio="Todavía no hay adjudicaciones cargadas en este período.">
-        {p && (
+        {p && p.adjudicaciones > 0 && (
           <>
-            {estrella && (
-              <section className="bloque" aria-labelledby="t-estrella">
-                <h2 id="t-estrella"><span className="num">01</span> La compra más grande</h2>
-                <TarjetaCompra c={estrella} destacada />
-                <Compartir camino={estrella.entidad_id ? ruta.entidad(estrella.entidad_id) : "/"}
-                  texto={`${estrella.entidad_nombre ?? "El Estado"} adjudicó ${montoCorto(estrella.monto)} a ${nombreLindo(estrella.proveedor_nombre) || "un proveedor"}: ${estrella.titulo ?? "compra pública"}.`} />
-              </section>
-            )}
-
-            {p.un_oferente.length > 0 && (
-              <section className="bloque" aria-labelledby="t-uno">
-                <h2 id="t-uno"><span className="num">02</span> Se presentó uno solo</h2>
-                <p className="intro">
-                  {pct != null && <>En <strong>{pct} %</strong> de los procesos con dato hubo un único oferente ({p.un_solo_oferente} de {p.con_dato_oferentes}), por {montoCorto(p.monto_un_oferente)}. </>}
-                  Que haya un solo oferente no implica una irregularidad: es un dato para mirar con atención.
-                </p>
-                <div className="lista-tarjetas">{p.un_oferente.map((c, i) => <TarjetaCompra key={i} c={c} />)}</div>
-              </section>
-            )}
-
-            <section className="bloque" aria-labelledby="t-quien">
-              <h2 id="t-quien"><span className="num">03</span> Quién compró y quién vendió</h2>
-              <div className="rankings">
-                <Ranking titulo="Instituciones que más adjudicaron" items={p.top_entidades.map((e) => ({
-                  k: e.id, href: ruta.entidad(e.id), nombre: e.nombre, monto: e.monto,
-                  detalle: `${montoCorto(e.monto)} · ${veces(e.cantidad, "adjudicación", "adjudicaciones")}` }))} />
-                <Ranking titulo="Proveedores que más ganaron" items={p.top_proveedores.map((e) => ({
-                  k: e.ruc, href: ruta.proveedor(e.ruc), nombre: nombreLindo(e.nombre), monto: e.monto,
-                  detalle: `${montoCorto(e.monto)} · ${veces(e.cantidad, "adjudicación", "adjudicaciones")}` }))} />
+            <section className="bloque" aria-labelledby="t-historias">
+              <h2 id="t-historias">Lo más llamativo</h2>
+              <div className="lista-tarjetas">
+                {estrella && <TarjetaCompra c={estrella} destacada rotulo="La compra más grande" />}
+                {uno && <TarjetaCompra c={uno} rotulo="La mayor con un solo oferente" />}
+                {otras.map((c, i) => <TarjetaCompra key={i} c={c} />)}
               </div>
+              {pct != null && (
+                <p className="dato-suelto">
+                  En <mark>{pct} %</mark> de las licitaciones con dato se presentó un solo oferente ({p.un_solo_oferente} de {p.con_dato_oferentes}).
+                  <span> No implica una irregularidad: es un dato para mirar con atención.</span>
+                </p>
+              )}
+              <Compartir camino="/" texto={`${lapso} el Estado paraguayo adjudicó ${montoCorto(p.monto_total)}${enSalarios(p.monto_total) ? `, el equivalente a ${enSalarios(p.monto_total)}` : ""}. Mirá a quién le compró:`} />
             </section>
 
-            {p.mayores.length > 1 && (
-              <section className="bloque" aria-labelledby="t-mas">
-                <h2 id="t-mas"><span className="num">04</span> Otras compras grandes</h2>
-                <div className="lista-tarjetas">{p.mayores.slice(1).map((c, i) => <TarjetaCompra key={i} c={c} />)}</div>
-              </section>
-            )}
+            <section className="bloque" aria-labelledby="t-quien">
+              <h2 id="t-quien">Quién compró y quién vendió</h2>
+              <div className="rankings">
+                <Ranking titulo="Instituciones" items={aRanking(p.top_entidades.slice(0, 3), "entidad")} />
+                <Ranking titulo="Proveedores" items={aRanking(p.top_proveedores.slice(0, 3).map((x) => ({ ...x, id: x.ruc })), "proveedor")} />
+              </div>
+              <p className="mas"><a className="btn" href="/ranking">Ver el ranking completo →</a></p>
+            </section>
           </>
         )}
       </Estado>
 
-      <MiInstitucion />
-      {p?.actualizado && <p className="nota">Datos actualizados al {formatearFecha(p.actualizado)}. Los montos en otras monedas no se suman.</p>}
+      {!fijada && <ElegirMunicipalidad elegir={setFijada} />}
     </>
   );
 }
 
-function MiInstitucion() {
-  const [fijada, setFijada] = useFijada();
-  const munis = useCarga<Opcion[]>(() => (fijada ? Promise.resolve([]) : api.municipalidades()), [fijada?.id]);
-  const ficha = useCarga<FichaEntidad>(() => (fijada ? api.fichaEntidad(fijada.id) : Promise.resolve(null)), [fijada?.id]);
+function MiInstitucion({ fijada, cambiar, previa }: { fijada: Opcion; cambiar: () => void; previa: number | null }) {
+  const ficha = useCarga<FichaEntidad>(() => api.fichaEntidad(fijada.id), [fijada.id]);
+  const nuevas = useCarga<Novedades | null>(() => (previa ? api.novedades(previa, fijada.id) : Promise.resolve(null)), [fijada.id, previa]);
   const f = ficha.datos;
-
   return (
     <section className="bloque mia" aria-labelledby="t-mia">
-      <h2 id="t-mia"><span className="num">05</span> {fijada ? "Tu institución" : "¿Y tu municipalidad?"}</h2>
-      {!fijada ? (
-        <>
-          <p className="intro">Elegí tu ciudad y mirá qué compró, a quién y por cuánto. Queda guardada en este dispositivo.</p>
-          <label htmlFor="muni" className="sr-only">Municipalidad</label>
-          <select id="muni" className="selector" value="" disabled={!munis.datos?.length}
-            onChange={(e) => { const m = munis.datos?.find((x) => x.id === e.target.value); if (m) setFijada(m); }}>
-            <option value="">{munis.cargando ? "Cargando municipalidades…" : "Elegí tu municipalidad"}</option>
-            {munis.datos?.map((m) => <option key={m.id} value={m.id}>{m.nombre.replace(/^Municipalidad de /i, "")}</option>)}
-          </select>
-        </>
-      ) : (
-        <Estado cargando={ficha.cargando} error={ficha.error}>
-          <div className="tarjeta destacada">
-            <h3 className="grande"><a href={ruta.entidad(fijada.id)}>{fijada.nombre}</a></h3>
-            {f && f.adjudicaciones > 0 ? (
-              <>
-                <p className="monto">{montoCorto(f.monto_total)}</p>
-                <p className="equivale">adjudicados en los últimos 12 meses, en {veces(f.adjudicaciones, "compra", "compras")} a {veces(f.proveedores, "proveedor", "proveedores")}.</p>
-              </>
-            ) : <p className="equivale">Todavía no tenemos adjudicaciones cargadas de esta institución.</p>}
-            <p className="pie-tarjeta">
-              <a className="btn primario" href={ruta.entidad(fijada.id)}>Ver sus compras</a>
-              <button type="button" className="btn" onClick={() => setFijada(null)}>Cambiar</button>
-            </p>
-          </div>
-        </Estado>
-      )}
+      <h2 id="t-mia">Tu institución</h2>
+      <div className="tarjeta destacada">
+        <h3 className="grande"><a href={ruta.entidad(fijada.id)}>{nombreEntidad(fijada.nombre)}</a></h3>
+        {ficha.cargando && !f ? <p className="equivale">Cargando…</p> : f && f.adjudicaciones > 0 ? (
+          <>
+            <p className="monto">{montoCorto(f.monto_total)}</p>
+            <p className="equivale">adjudicados desde el {formatearFecha(f.desde)}, en {veces(f.adjudicaciones, "compra", "compras")} a {veces(f.proveedores, "proveedor", "proveedores")}.</p>
+          </>
+        ) : <p className="equivale">Todavía no registramos adjudicaciones de esta institución.</p>}
+        {previa && nuevas.datos && (
+          <p className="novedad">{nuevas.datos.adjudicaciones > 0
+            ? <><strong>Nuevo desde tu última visita:</strong> {veces(nuevas.datos.adjudicaciones, "adjudicación", "adjudicaciones")} por {montoCorto(nuevas.datos.monto)}.</>
+            : <>Sin adjudicaciones nuevas desde tu última visita ({haceCuanto(previa)}).</>}</p>
+        )}
+        <p className="pie-tarjeta">
+          <a className="btn primario" href={ruta.entidad(fijada.id)}>Ver sus compras</a>
+          <button type="button" className="btn" onClick={cambiar}>Cambiar</button>
+        </p>
+      </div>
     </section>
+  );
+}
+
+function ElegirMunicipalidad({ elegir }: { elegir: (o: Opcion) => void }) {
+  const munis = useCarga<Opcion[]>(() => api.municipalidades(), []);
+  return (
+    <section className="bloque mia" aria-labelledby="t-muni">
+      <h2 id="t-muni">¿Y tu municipalidad?</h2>
+      <p className="intro">Elegí tu ciudad y la próxima vez que entres vas a ver primero qué compró, a quién y por cuánto. Se guarda solo en este dispositivo.</p>
+      <label htmlFor="muni" className="sr-only">Municipalidad</label>
+      <select id="muni" className="selector" value="" disabled={!munis.datos?.length}
+        onChange={(e) => { const m = munis.datos?.find((x) => x.id === e.target.value); if (m) { elegir(m); scrollTo(0, 0); } }}>
+        <option value="">{munis.cargando ? "Cargando municipalidades…" : munis.error ? "No pudimos cargar la lista" : "Elegí tu municipalidad"}</option>
+        {munis.datos?.map((m) => <option key={m.id} value={m.id}>{m.nombre.replace(/^Municipalidad de /i, "")}</option>)}
+      </select>
+      <p className="meta">¿Otra institución? Buscala y tocá “Fijar en mi inicio”.</p>
+    </section>
+  );
+}
+
+// ---------- Ranking ----------
+function PaginaRanking() {
+  useTitulo("Ranking");
+  const [tipo, setTipo] = useState<"entidad" | "proveedor">("entidad");
+  const [dias, setDias] = useState(30);
+  const { cargando, datos, error } = useCarga<Puesto[]>(() => api.ranking(tipo, dias), [tipo, dias]);
+  return (
+    <section className="pagina">
+      <a href="/" className="volver">← Inicio</a>
+      <p className="etiqueta">Ranking</p>
+      <h1 className="titulo-ficha">{tipo === "entidad" ? "Quién adjudicó más" : "Quién ganó más"}</h1>
+      <p className="resumen-ficha">Las 20 {tipo === "entidad" ? "instituciones que más adjudicaron" : "empresas y personas que más ganaron"}, por monto en guaraníes.</p>
+      <div className="filtros">
+        <div className="lapso" role="group" aria-label="Qué mirar">
+          <button type="button" aria-pressed={tipo === "entidad"} onClick={() => setTipo("entidad")}>Instituciones</button>
+          <button type="button" aria-pressed={tipo === "proveedor"} onClick={() => setTipo("proveedor")}>Proveedores</button>
+        </div>
+        <div className="lapso" role="group" aria-label="Período">
+          {[7, 30, 90].map((d) => <button key={d} type="button" aria-pressed={dias === d} onClick={() => setDias(d)}>{d} días</button>)}
+        </div>
+      </div>
+      <Estado cargando={cargando} error={error} vacio={datos?.length === 0}>
+        {datos && <Ranking items={aRanking(datos, tipo)} />}
+      </Estado>
+      <NotaDatos />
+    </section>
+  );
+}
+
+function NotaDatos() {
+  const { datos: e } = useCarga<EstadoDatos>(() => api.estado(), []);
+  if (!e) return null;
+  return (
+    <p className="nota">
+      Datos completos desde el {formatearFecha(e.desde)}{e.actualizado && <>, actualizados al {formatearFecha(e.actualizado)}</>}.
+      {e.cargando && " Seguimos cargando y corrigiendo registros anteriores; algunas cifras pueden cambiar."}
+    </p>
   );
 }
 
@@ -297,77 +402,111 @@ function Busqueda({ q }: { q: string }) {
   const { cargando, datos, error } = useCarga(() => api.buscar(q), [q]);
   return (
     <section className="pagina">
+      <a href="/" className="volver">← Inicio</a>
       <Buscador inicial={q} />
-      <h1 className="titulo-pagina">Resultados para “{q}”</h1>
+      <h1 className="titulo-pagina">{datos ? veces(datos.length, "resultado", "resultados") : "Resultados"} para “{q}”</h1>
       <Estado cargando={cargando} error={error} vacio={datos?.length === 0}
         textoVacio="No encontramos nada con ese nombre. Probá con otra palabra, con la sigla (IPS, ANDE) o con el RUC.">
-        <ul className="resultados">
-          {datos?.map((r: Resultado) => (
-            <li key={r.tipo + r.id}>
-              <a href={r.tipo === "proveedor" ? ruta.proveedor(r.id) : ruta.entidad(r.id)}>
-                <span className="etiqueta">{r.tipo === "proveedor" ? "Proveedor" : "Institución"}</span>
-                <span className="nombre">{r.tipo === "proveedor" ? nombreLindo(r.nombre) : r.nombre}</span>
-                {r.tipo === "proveedor" && <span className="meta">RUC {r.id}</span>}
-                <span className="flecha" aria-hidden="true">→</span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        {datos && (
+          <ul className="resultados">
+            {datos.map((r: Resultado) => (
+              <li key={r.tipo + r.id}>
+                <a href={r.tipo === "proveedor" ? ruta.proveedor(r.id) : ruta.entidad(r.id)}>
+                  <span className="etiqueta">{r.tipo === "proveedor" ? "Proveedor" : "Institución"}</span>
+                  <span className="nombre">{r.tipo === "proveedor" ? nombreLindo(r.nombre) : nombreEntidad(r.nombre)}</span>
+                  {r.tipo === "proveedor" && <span className="meta">RUC {r.id}</span>}
+                  <span className="flecha" aria-hidden="true">→</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </Estado>
-      {datos?.length === 0 && <ul className="chips">{SUGERENCIAS.map((s) => <li key={s}><a href={ruta.buscar(s)}>{s}</a></li>)}</ul>}
+      {datos?.length === 0 && <Chips />}
     </section>
   );
 }
 
-// ---------- Ficha de proveedor ----------
+// ---------- Fichas ----------
+type Ficha = NonNullable<FichaEntidad> | NonNullable<FichaProveedor>;
+
+function CuerpoFicha({ f, tipo, nombre, camino, extra }: { f: Ficha; tipo: "entidad" | "proveedor"; nombre: string; camino: string; extra?: ReactNode }) {
+  const esEnt = tipo === "entidad";
+  const pct = f.con_dato_oferentes >= 3 ? Math.round((f.un_solo_oferente / f.con_dato_oferentes) * 100) : null;
+  const contrapartes = "top_proveedores" in f
+    ? aRanking(f.top_proveedores.map((x) => ({ ...x, id: x.ruc })), "proveedor")
+    : aRanking(f.top_entidades, "entidad");
+  const cuantos = "proveedores" in f ? veces(f.proveedores, "proveedor", "proveedores") : veces(f.instituciones, "institución", "instituciones");
+  const compras = veces(f.adjudicaciones, esEnt ? "compra" : "adjudicación", esEnt ? "compras" : "adjudicaciones");
+  const frase = `${nombre} ${esEnt ? "adjudicó" : "ganó"} ${montoCorto(f.monto_total)} en ${compras} desde el ${formatearFecha(f.desde)}.`;
+  return (
+    <>
+      {f.adjudicaciones > 0 ? (
+        <p className="resumen-ficha">
+          {esEnt ? "Adjudicó" : "Ganó"} <mark>{montoCorto(f.monto_total)}</mark> en {compras} {esEnt ? "a" : "de"} {cuantos} desde el {formatearFecha(f.desde)}.
+          {enSalarios(f.monto_total) && <> Equivale a {enSalarios(f.monto_total)}.</>}
+        </p>
+      ) : <p className="resumen-ficha">No registramos adjudicaciones {esEnt ? "de esta institución" : "a este proveedor"} desde el {formatearFecha(f.desde)}.</p>}
+
+      {f.adjudicaciones > 0 && (f.puesto != null || pct != null) && (
+        <ul className="datos-clave">
+          {f.puesto != null && <li><strong>Puesto {f.puesto}</strong> de {entero(f.de)} {esEnt ? "instituciones" : "proveedores"}, por monto</li>}
+          {pct != null && <li><strong>{pct} %</strong> de sus licitaciones con dato tuvo un solo oferente ({f.un_solo_oferente} de {f.con_dato_oferentes})</li>}
+        </ul>
+      )}
+
+      <div className="acciones">
+        <Compartir camino={camino} texto={frase} />
+        {extra}
+      </div>
+
+      {f.adjudicaciones > 0 && f.serie.length > 2 && (
+        <>
+          <h2 className="sub">Monto adjudicado por semana</h2>
+          <Barras datos={f.serie.map((s) => ({ etiqueta: diaCorto(s.semana), monto: s.monto }))} descripcion="Monto adjudicado por semana desde que tenemos datos completos." />
+        </>
+      )}
+
+      <Ranking titulo={esEnt ? "A quién le compró más" : "Quién le compró más"} items={contrapartes} />
+
+      {f.recientes.length > 0 && (
+        <>
+          <h2 className="sub">{esEnt ? "Compras recientes" : "Adjudicaciones recientes"}</h2>
+          <div className="lista-tarjetas">
+            {f.recientes.map((c, i) => <TarjetaCompra key={i} c={c} />)}
+          </div>
+        </>
+      )}
+      <NotaDatos />
+    </>
+  );
+}
+
 function Proveedor({ ruc }: { ruc: string }) {
-  const resumen = useCarga<Resumen | null>(() => api.resumenProveedor(ruc), [ruc]);
-  const adjs = useCarga<Adjudicacion[]>(() => api.adjudicacionesProveedor(ruc), [ruc]);
-  const r = resumen.datos;
-  const nombre = nombreLindo(r?.nombre);
-  useTitulo(r ? nombre : "Proveedor");
+  const { cargando, datos: f, error } = useCarga<FichaProveedor>(() => api.fichaProveedor(ruc), [ruc]);
+  const nombre = nombreLindo(f?.nombre);
+  useTitulo(f ? nombre : "Proveedor");
   return (
     <section className="pagina">
       <a href="/" className="volver">← Inicio</a>
-      <Estado cargando={resumen.cargando} error={resumen.error} vacio={!resumen.cargando && !r} textoVacio="No encontramos un proveedor con ese RUC.">
-        {r && (
+      <Estado cargando={cargando} error={error} vacio={!cargando && !f} textoVacio="No encontramos un proveedor con ese RUC.">
+        {f && (
           <>
-            <p className="etiqueta">Proveedor del Estado · RUC {r.ruc}</p>
+            <p className="etiqueta">Proveedor del Estado · RUC {f.ruc}</p>
             <h1 className="titulo-ficha">{nombre}</h1>
-            <p className="resumen-ficha">
-              Ganó <mark>{montoCorto(r.monto_pyg_12m)}</mark> en {veces(r.adjudicaciones_12m, "adjudicación", "adjudicaciones")} durante los últimos 12 meses.
-              {r.ultima_adjudicacion && <> La última fue el {formatearFecha(r.ultima_adjudicacion)}.</>}
-            </p>
-            <Compartir camino={ruta.proveedor(r.ruc)} texto={`${nombre} ganó ${montoCorto(r.monto_pyg_12m)} en contratos con el Estado en los últimos 12 meses.`} />
+            <CuerpoFicha f={f} tipo="proveedor" nombre={nombre} camino={ruta.proveedor(f.ruc)} />
           </>
         )}
       </Estado>
-      {r && (
-        <>
-          <h2 className="sub">Sus adjudicaciones</h2>
-          <Estado cargando={adjs.cargando} error={adjs.error} vacio={adjs.datos?.length === 0}>
-            <div className="lista-tarjetas">
-              {adjs.datos?.map((a) => {
-                const quien = a.comprador ?? a.procesos?.entidades ?? null;
-                return <TarjetaCompra key={a.id} c={{
-                  titulo: a.convenio_marco ? a.detalle ?? a.procesos?.titulo ?? null : a.procesos?.titulo ?? null,
-                  monto: a.monto, fecha: a.fecha, num_oferentes: a.num_oferentes, convenio_marco: a.convenio_marco,
-                  url_dncp: a.procesos?.url_dncp ?? null, entidad_id: quien?.id, entidad_nombre: quien?.nombre }} />;
-              })}
-            </div>
-          </Estado>
-        </>
-      )}
     </section>
   );
 }
 
-// ---------- Ficha de institución ----------
 function Entidad({ id }: { id: string }) {
   const { cargando, datos: f, error } = useCarga<FichaEntidad>(() => api.fichaEntidad(id), [id]);
   const [fijada, setFijada] = useFijada();
-  useTitulo(f?.nombre ?? "Institución");
-  const pct = f && f.con_dato_oferentes > 0 ? Math.round((f.un_solo_oferente / f.con_dato_oferentes) * 100) : null;
+  const nombre = nombreEntidad(f?.nombre);
+  useTitulo(f ? nombre : "Institución");
   return (
     <section className="pagina">
       <a href="/" className="volver">← Inicio</a>
@@ -375,35 +514,28 @@ function Entidad({ id }: { id: string }) {
         {f && (
           <>
             <p className="etiqueta">Institución pública</p>
-            <h1 className="titulo-ficha">{f.nombre}</h1>
-            {f.adjudicaciones > 0 ? (
-              <p className="resumen-ficha">
-                Adjudicó <mark>{montoCorto(f.monto_total)}</mark> en {veces(f.adjudicaciones, "compra", "compras")} a {veces(f.proveedores, "proveedor", "proveedores")} durante los últimos 12 meses.
-                {enSalarios(f.monto_total) && <> Equivale a {enSalarios(f.monto_total)}.</>}
-                {pct != null && <> En {pct} % de los procesos con dato se presentó un solo oferente.</>}
-              </p>
-            ) : <p className="resumen-ficha">Todavía no tenemos adjudicaciones cargadas de esta institución en los últimos 12 meses.</p>}
-            <div className="acciones">
-              <Compartir camino={ruta.entidad(f.id)} texto={`${f.nombre} adjudicó ${montoCorto(f.monto_total)} en ${veces(f.adjudicaciones, "compra", "compras")} en los últimos 12 meses.`} />
+            <h1 className="titulo-ficha">{nombre}</h1>
+            <CuerpoFicha f={f} tipo="entidad" nombre={nombre} camino={ruta.entidad(f.id)} extra={
               <button type="button" className="btn" aria-pressed={fijada?.id === f.id}
                 onClick={() => setFijada(fijada?.id === f.id ? null : { id: f.id, nombre: f.nombre })}>
                 {fijada?.id === f.id ? "★ Fijada en tu inicio" : "☆ Fijar en mi inicio"}
-              </button>
-            </div>
-
-            <Ranking titulo="A quién le compró más" items={f.top_proveedores.map((p) => ({
-              k: p.ruc, href: ruta.proveedor(p.ruc), nombre: nombreLindo(p.nombre), monto: p.monto,
-              detalle: `${montoCorto(p.monto)} · ${veces(p.cantidad, "adjudicación", "adjudicaciones")}` }))} />
-
-            {f.recientes.length > 0 && (
-              <>
-                <h2 className="sub">Compras recientes</h2>
-                <div className="lista-tarjetas">{f.recientes.map((c, i) => <TarjetaCompra key={i} c={c} />)}</div>
-              </>
-            )}
+              </button>} />
           </>
         )}
       </Estado>
+    </section>
+  );
+}
+
+function NoEncontrada() {
+  useTitulo("Página no encontrada");
+  return (
+    <section className="pagina">
+      <h1 className="titulo-ficha">No encontramos esa página</h1>
+      <p className="resumen-ficha">Puede que el enlace esté incompleto. Probá buscar lo que necesitás:</p>
+      <Buscador />
+      <Chips />
+      <p className="mas"><a className="btn" href="/">Ir al inicio</a></p>
     </section>
   );
 }
@@ -419,28 +551,34 @@ export default function App() {
   const [, seg, ...resto] = camino.split("/");
   let arg = resto.join("/");
   try { arg = decodeURIComponent(arg); } catch { /* se usa tal cual */ }
-  let vista: ReactNode = <Inicio />;
-  if (seg === "buscar" && arg) vista = <Busqueda q={arg} />;
+  let vista: ReactNode;
+  if (!seg) vista = <Inicio />;
+  else if (seg === "buscar" && arg) vista = <Busqueda q={arg} />;
   else if (seg === "proveedor" && arg) vista = <Proveedor ruc={arg} />;
   else if (seg === "entidad" && arg) vista = <Entidad id={arg} />;
+  else if (seg === "ranking") vista = <PaginaRanking />;
+  else vista = <NoEncontrada />;
 
   return (
     <>
       <a href="#contenido" className="skip" target="_self">Saltar al contenido</a>
       <header className="barra-sup">
         <a href="/" className="logo" aria-label="Contratos Abiertos, inicio">
-          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor" /><rect x="7" y="17" width="18" height="7" rx="1.5" className="logo-marca" /><path d="M9 11h14" stroke="var(--bg)" strokeWidth="2.6" strokeLinecap="round" /></svg>
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor" /><rect x="7" y="17" width="18" height="7" rx="1.5" className="logo-marca" /><path d="M9 11h14" stroke="var(--bg)" strokeWidth="2.6" strokeLinecap="round" /></svg>
           <span>Contratos <mark>Abiertos</mark></span>
         </a>
-        <button className="tema" onClick={alternarTema} aria-label="Cambiar entre modo claro y oscuro" title="Modo claro / oscuro">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg>
-        </button>
+        <nav aria-label="Secciones">
+          <a href="/ranking" aria-current={seg === "ranking" ? "page" : undefined}>Ranking</a>
+          <button className="tema" onClick={alternarTema} aria-label="Cambiar entre modo claro y oscuro" title="Modo claro / oscuro">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg>
+          </button>
+        </nav>
       </header>
       {modoDemo && <p className="demo" role="note">Modo demostración: los datos que ves son ficticios.</p>}
       <main id="contenido">{vista}</main>
       <footer className="pie">
         <p>Datos abiertos de la Dirección Nacional de Contrataciones Públicas (DNCP), licencia CC BY 4.0. Sitio independiente, sin vínculo con la DNCP.</p>
-        <p>Mostramos la información tal como la publica la DNCP, sin juicios de valor. La versión oficial está en el enlace de cada compra. El equivalente en salarios mínimos usa Gs. 3.044.000 (vigente desde julio de 2026).</p>
+        <p>Mostramos la información tal como la publica la DNCP, sin juicios de valor; la versión oficial está en el enlace de cada compra. Solo se suman montos en guaraníes. El equivalente en salarios mínimos usa Gs. 3.044.000 (vigente desde julio de 2026).</p>
         <p className="firma">Hecho por <a href="https://ardentium.tech/?utm_source=contratos-abiertos&utm_medium=referral&utm_campaign=pie" target="_blank" rel="noopener">Ardentium</a></p>
       </footer>
     </>
