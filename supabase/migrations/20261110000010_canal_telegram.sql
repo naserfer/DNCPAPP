@@ -35,8 +35,8 @@ returns text language sql immutable set search_path = '' as $$
   select 'Gs. ' || case
     when m >= 1e12 then replace(to_char(m / 1e12, 'FM999990.0'), '.', ',') || ' billones'
     when m >= 1e9  then replace(to_char(m / 1e9,  'FM999990.0'), '.', ',') || ' mil millones'
-    when m >= 1e6  then to_char(round(m / 1e6), 'FM999G999') || ' millones'
-    else to_char(round(m), 'FM999G999G999') end;
+    when m >= 1e6  then replace(to_char(round(m / 1e6), 'FM999,999'), ',', '.') || ' millones'
+    else replace(to_char(round(m), 'FM999,999,999'), ',', '.') end;
 $$;
 
 -- Texto del resumen semanal (HTML simple de Telegram).
