@@ -282,7 +282,9 @@ as $$
     where length(p.ql) >= 2
   )
   select tipo, id, nombre, s
-  from punt where s > 0
+  from punt
+  -- si hay coincidencia exacta de palabra o RUC, no se muestran las aproximadas
+  where s > 0 and s >= least(3.0, (select max(s) from punt)) - case when (select max(s) from punt) >= 3 then 0 else 9 end
   order by s desc, (tipo = 'entidad') desc, length(nombre), nombre
   limit least(greatest(limite, 1), 50);
 $$;
