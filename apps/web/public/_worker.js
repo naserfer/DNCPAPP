@@ -20,19 +20,19 @@ async function datos(ruta, init) {
   } catch { return null; } finally { clearTimeout(t); }
 }
 
+const fecha = (iso) => new Intl.DateTimeFormat("es-PY", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Asuncion" }).format(new Date(iso));
+const rpc = (fn, args) => datos("rpc/" + fn, { method: "POST", body: JSON.stringify(args) });
+
 async function meta(tipo, id) {
-  if (tipo === "proveedor") {
-    const r = (await datos(`resumen_proveedor?ruc=eq.${encodeURIComponent(id)}`))?.[0];
-    if (!r) return null;
-    return { titulo: `${r.nombre} · Contratos Abiertos`,
-      desc: `Ganó ${corto(Number(r.monto_pyg_12m))} en ${r.adjudicaciones_12m} adjudicaciones con el Estado paraguayo en los últimos 12 meses.` };
-  }
-  const f = await datos("rpc/resumen_entidad", { method: "POST", body: JSON.stringify({ p_id: id }) });
-  if (!f) return null;
-  return { titulo: `${f.nombre} · Contratos Abiertos`,
+  const f = tipo === "proveedor" ? await rpc("ficha_proveedor", { p_ruc: id }) : await rpc("ficha_entidad", { p_id: id });
+  if (!f || !f.nombre) return null;
+  const verbo = tipo === "proveedor" ? "Ganó" : "Adjudicó";
+  return {
+    titulo: `${f.nombre} · Contratos Abiertos`,
     desc: f.adjudicaciones > 0
-      ? `Adjudicó ${corto(Number(f.monto_total))} en ${f.adjudicaciones} compras a ${f.proveedores} proveedores en los últimos 12 meses.`
-      : "Mirá sus compras públicas con datos abiertos de la DNCP." };
+      ? `${verbo} ${corto(Number(f.monto_total))} en ${f.adjudicaciones} ${f.adjudicaciones === 1 ? "adjudicación" : "adjudicaciones"} con el Estado paraguayo desde el ${fecha(f.desde)}.`
+      : "Mirá sus compras públicas con datos abiertos de la DNCP.",
+  };
 }
 
 export default {

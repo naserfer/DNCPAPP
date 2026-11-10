@@ -130,8 +130,8 @@ function Compartir({ texto, camino }: { texto: string; camino: string }) {
   );
 }
 
-function Titulo({ texto }: { texto: string | null }) {
-  const limpio = tituloLimpio(texto);
+function Titulo({ texto, contexto }: { texto: string | null; contexto?: string | null }) {
+  const limpio = tituloLimpio(texto, contexto);
   const [abierto, setAbierto] = useState(false);
   const largo = limpio.length > 120;
   return (
@@ -159,7 +159,7 @@ function TarjetaCompra({ c, destacada = false, rotulo }: { c: Compra; destacada?
       {rotulo && <p className="rotulo">{rotulo}</p>}
       <p className="monto" title={formatearMonto(c.monto)}>{montoCorto(c.monto)}</p>
       {destacada && c.monto != null && enSalarios(c.monto) && <p className="equivale">Equivale a {enSalarios(c.monto)}.</p>}
-      <Titulo texto={c.titulo} />
+      <Titulo texto={c.titulo} contexto={c.entidad_nombre} />
       <p className="quien">
         {c.entidad_id && <a href={ruta.entidad(c.entidad_id)}>{nombreEntidad(c.entidad_nombre)}</a>}
         {c.entidad_id && c.proveedor_ruc !== undefined && <span aria-hidden="true"> → </span>}

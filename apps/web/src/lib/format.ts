@@ -51,19 +51,26 @@ export function nombreEntidad(s: string | null | undefined): string {
   if (!s) return "";
   const partes = s.split(" / ").map((x) => x.trim()).filter(Boolean);
   if (partes.length !== 2) return s;
+  if (partes[0].toLowerCase() === partes[1].toLowerCase()) return partes[1];
   return `${partes[1]} (${nombreLindo(partes[0].toUpperCase())})`;
 }
 
 const RUIDO = /^(plurianual|ad referendum.*|\d+\s*[°ºª]?\s*llamado|segundo llamado|tercer llamado|sbe|con id.*)$/i;
-const CODIGO = /^(LPN|LPI|LCO|CD|CVE|MCN|CO|LP|CE)\s*(SBE\s*)?(N[°ºro.]*\s*)?[\d/.-]+\s*[-–:.]?\s*/i;
+const CODIGO = /^(LPN|LPI|LCO|CD|CVE|MCN|SBEN|SBE|CO|LP|CE)\s*(SBE\s*)?(N[°ºro.]*\s*)?[\d/.-]+\s*[-–:.]?\s*/i;
 
 /** Quita jerga administrativa y mayúsculas sostenidas del título de un llamado. */
-export function tituloLimpio(t: string | null | undefined): string {
+const SIGLAS_COMUNES = ["IPS", "ANDE", "MEC", "MOPC", "MSPBS", "UNA", "PGN", "DNCP", "MITIC", "MADES", "SEDECO", "SENATUR", "ONAMP", "DNIT", "INC", "ESSAP", "COPACO", "PETROPAR", "BCP", "BNF", "MDI", "MJ", "MRE", "MAG", "MIC", "INDERT", "SENAD", "SEN", "DINAC", "CONATEL", "LPN", "SBE", "TIER", "III", "II", "IV", "MG", "ML", "KG", "UOC", "N°"];
+
+export function tituloLimpio(t: string | null | undefined, contexto?: string | null): string {
   if (!t) return "Compra sin descripción";
-  let s = t.replace(/^Compra por convenio marco:\s*/i, "").replace(CODIGO, "").trim();
+  let s = t.replace(/^Compra por convenio marco:\s*/i, "").replace(CODIGO, "").replace(/["“”]/g, "").trim();
   s = s.split(/\s+[-–]\s+/).filter((seg, i) => i === 0 || !RUIDO.test(seg.trim())).join(" – ");
   s = s.replace(/\s+/g, " ").replace(/[.\s]+$/, "");
-  if (s.length > 12 && s === s.toUpperCase()) s = s.charAt(0) + s.slice(1).toLowerCase();
+  if (s.length > 12 && s === s.toUpperCase()) {
+    const siglas = new Set([...SIGLAS_COMUNES, ...(contexto?.match(/\(([A-ZÁÉÍÓÚÑ.]{2,12})\)/g) ?? []).map((x) => x.slice(1, -1))]);
+    s = s.toLowerCase().replace(/[a-záéíóúñ.]+/g, (w) => (siglas.has(w.toUpperCase()) ? w.toUpperCase() : w));
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+  }
   return s || "Compra sin descripción";
 }
 
