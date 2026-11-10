@@ -80,3 +80,11 @@ export function haceCuanto(desde: number): string {
   const d = Math.round(h / 24);
   return `hace ${d} ${d === 1 ? "día" : "días"}`;
 }
+
+/** Igual que montoCorto, pero con la unidad fijada por el valor final: sirve para animar el número sin saltos de unidad. */
+export function montoEnUnidadDe(actual: number, final: number): string {
+  if (final >= 1e12) return `Gs. ${num(actual / 1e12, 1)} billones`;
+  if (final >= 1e9) return `Gs. ${num(actual / 1e9, 1)} mil millones`;
+  if (final >= 1e6) return `Gs. ${num(actual / 1e6, final < 1e7 ? 1 : 0)} millones`;
+  return formatearMonto(Math.round(actual));
+}

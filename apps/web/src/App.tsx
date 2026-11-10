@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, modoDemo, type Compra, type EstadoDatos, type FichaEntidad, type FichaProveedor, type Novedades, type Opcion, type Periodo, type Puesto, type Resultado } from "./lib/api";
-import { diaCorto, enSalarios, entero, formatearFecha, formatearMonto, haceCuanto, montoCorto, nombreEntidad, nombreLindo, tituloLimpio } from "./lib/format";
+import { SALARIO_MINIMO, diaCorto, enSalarios, entero, formatearFecha, formatearMonto, haceCuanto, montoCorto, montoEnUnidadDe, nombreEntidad, nombreLindo, tituloLimpio } from "./lib/format";
 
 // ---------- Rutas (History API) ----------
 const SITIO = "https://contratos-abiertos.pages.dev";
@@ -73,6 +73,27 @@ function leerVisitaAnterior(): number | null {
   visitaAnterior = previa && Date.now() - previa > 6 * 36e5 ? previa : null;
   guardado.poner("visita", Date.now());
   return visitaAnterior;
+}
+
+/** Cuenta desde el valor anterior hasta `objetivo` (desde 0 la primera vez). Respeta "reducir movimiento". */
+function useContador(objetivo: number | undefined, ms = 900): number {
+  const [v, setV] = useState(0);
+  const desde = useRef(0);
+  useEffect(() => {
+    if (objetivo == null) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { desde.current = objetivo; setV(objetivo); return; }
+    const inicio = desde.current, t0 = performance.now();
+    let cuadro = 0;
+    const paso = (t: number) => {
+      const k = Math.min((t - t0) / ms, 1), suave = 1 - Math.pow(1 - k, 3);
+      const actual = inicio + (objetivo - inicio) * suave;
+      desde.current = actual; setV(actual);
+      if (k < 1) cuadro = requestAnimationFrame(paso);
+    };
+    cuadro = requestAnimationFrame(paso);
+    return () => cancelAnimationFrame(cuadro);
+  }, [objetivo, ms]);
+  return v;
 }
 
 const veces = (n: number, uno: string, varios: string) => `${entero(n)} ${n === 1 ? uno : varios}`;
@@ -189,7 +210,7 @@ function Ranking({ titulo, items }: { titulo?: string; items: ItemRanking[] }) {
               <span className="puesto" aria-hidden="true">{n + 1}</span>
               <span className="cuerpo">
                 <span className="nombre">{i.nombre}</span>
-                <span className="barra" aria-hidden="true"><span style={{ width: `${Math.max((i.monto / max) * 100, 2)}%` }} /></span>
+                <span className="barra" aria-hidden="true"><span style={{ width: `${Math.max((i.monto / max) * 100, 2)}%`, animationDelay: `${n * 70}ms` }} /></span>
                 <span className="meta">{i.detalle}</span>
               </span>
             </a>
@@ -209,7 +230,7 @@ function Barras({ datos, resaltar, descripcion }: { datos: { etiqueta: string; m
       <div className="lienzo" role="img" aria-label={descripcion}>
         {datos.map((d, i) => (
           <span key={d.etiqueta + i} className={i >= corte ? "fuerte" : ""} title={`${d.etiqueta}: ${montoCorto(d.monto)}`}
-            style={{ height: `${d.monto > 0 ? Math.max(Math.sqrt(d.monto / max) * 100, 5) : 1.5}%` }} />
+            style={{ animationDelay: `${Math.min(i * 28, 700)}ms`, height: `${d.monto > 0 ? Math.max(Math.sqrt(d.monto / max) * 100, 5) : 1.5}%` }} />
         ))}
       </div>
       <figcaption><span>{datos[0]?.etiqueta}</span><span className="escala">escala comprimida para que se vean los días chicos</span><span>{datos[datos.length - 1]?.etiqueta}</span></figcaption>
@@ -242,15 +263,18 @@ function Inicio() {
   const uno = p?.un_oferente.find((c) => c.titulo !== estrella?.titulo) ?? null;
   const otras = p?.mayores.filter((c) => c !== estrella && c.titulo !== uno?.titulo).slice(0, 2) ?? [];
   const serie = p?.serie.slice(-Math.min(p.serie.length, dias * 2)) ?? [];
+  const total = useContador(p?.monto_total);
 
   return (
     <>
       <section className="hero">
         <p className="antetitulo">{lapso} el Estado paraguayo adjudicó</p>
-        <h1 className="cifra">{p ? <mark>{montoCorto(p.monto_total)}</mark> : <span className="fantasma">Gs. 0,0 mil millones</span>}</h1>
+        <h1 className="cifra" aria-label={p ? montoCorto(p.monto_total) : undefined}>
+          {p ? <mark aria-hidden="true">{montoEnUnidadDe(total, p.monto_total)}</mark> : <span className="fantasma">Gs. 0,0 mil millones</span>}
+        </h1>
         {p && (
-          <p className="bajada">
-            {enSalarios(p.monto_total) && <>Equivale a <strong>{enSalarios(p.monto_total)}</strong>. </>}
+          <p className="bajada entra">
+            {enSalarios(p.monto_total) && <>Equivale a <strong>{entero(Math.round(total / SALARIO_MINIMO))} salarios mínimos</strong>. </>}
             Fueron {veces(p.adjudicaciones, "adjudicación", "adjudicaciones")} de {veces(p.instituciones, "institución", "instituciones")} a {veces(p.proveedores, "proveedor", "proveedores")}.
             {cambio != null && <> <span className="cambio">{cambio >= 0 ? "▲" : "▼"} {Math.abs(cambio)} % {cambio >= 0 ? "más" : "menos"} que {anterior}</span>.</>}
           </p>
@@ -438,12 +462,13 @@ function CuerpoFicha({ f, tipo, nombre, camino, extra }: { f: Ficha; tipo: "enti
     : aRanking(f.top_entidades, "entidad");
   const cuantos = "proveedores" in f ? veces(f.proveedores, "proveedor", "proveedores") : veces(f.instituciones, "institución", "instituciones");
   const compras = veces(f.adjudicaciones, esEnt ? "compra" : "adjudicación", esEnt ? "compras" : "adjudicaciones");
+  const total = useContador(f.monto_total, 700);
   const frase = `${nombre} ${esEnt ? "adjudicó" : "ganó"} ${montoCorto(f.monto_total)} en ${compras} desde el ${formatearFecha(f.desde)}.`;
   return (
     <>
       {f.adjudicaciones > 0 ? (
         <p className="resumen-ficha">
-          {esEnt ? "Adjudicó" : "Ganó"} <mark>{montoCorto(f.monto_total)}</mark> en {compras} {esEnt ? "a" : "de"} {cuantos} desde el {formatearFecha(f.desde)}.
+          {esEnt ? "Adjudicó" : "Ganó"} <mark aria-label={montoCorto(f.monto_total)}>{montoEnUnidadDe(total, f.monto_total)}</mark> en {compras} {esEnt ? "a" : "de"} {cuantos} desde el {formatearFecha(f.desde)}.
           {enSalarios(f.monto_total) && <> Equivale a {enSalarios(f.monto_total)}.</>}
         </p>
       ) : <p className="resumen-ficha">No registramos adjudicaciones {esEnt ? "de esta institución" : "a este proveedor"} desde el {formatearFecha(f.desde)}.</p>}

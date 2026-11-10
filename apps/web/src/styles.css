@@ -176,3 +176,30 @@ main { padding-top: 12px; padding-bottom: 56px; min-height: 70vh; }
 
 .barras .escala { font-size: .7rem; text-align: center; padding: 0 8px; }
 @media (max-width: 520px) { .barras .escala { display: none; } }
+
+/* Entrada: los datos llegan, no aparecen de golpe */
+@keyframes sube { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes crece-alto { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes crece-ancho { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes resalta { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
+
+.cifra { font-variant-numeric: tabular-nums; }
+.cifra mark, .resumen-ficha mark, .dato-suelto mark { background-repeat: no-repeat; animation: resalta .7s cubic-bezier(.2, .7, .2, 1) .15s both; }
+.antetitulo { animation: sube .4s ease both; }
+.entra { animation: sube .5s ease .25s both; }
+.hero .barras { animation: sube .5s ease .35s both; }
+.barras .lienzo span { transform-origin: bottom; animation: crece-alto .6s cubic-bezier(.2, .8, .2, 1) both; }
+.barra span { transform-origin: left; animation: crece-ancho .7s cubic-bezier(.2, .8, .2, 1) both; }
+.lista-tarjetas .tarjeta, .mia .tarjeta { animation: sube .45s ease both; }
+.lista-tarjetas .tarjeta:nth-child(2) { animation-delay: .08s; }
+.lista-tarjetas .tarjeta:nth-child(3) { animation-delay: .16s; }
+.lista-tarjetas .tarjeta:nth-child(n+4) { animation-delay: .22s; }
+.titulo-ficha, .resumen-ficha, .datos-clave li { animation: sube .45s ease both; }
+.resumen-ficha { animation-delay: .08s; }
+.datos-clave li:nth-child(1) { animation-delay: .16s; }
+.datos-clave li:nth-child(2) { animation-delay: .24s; }
+.tarjeta { transition: border-color .15s ease, transform .15s ease; }
+.tarjeta:not(.destacada):hover { border-color: var(--fg); }
+.ranking li a .puesto { transition: color .15s ease; }
+.ranking li a:hover .puesto { color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { .cifra mark, .resumen-ficha mark, .dato-suelto mark { background-size: 100% 100%; } }
