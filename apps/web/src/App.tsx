@@ -89,7 +89,7 @@ function useContador(objetivo: number | undefined, ms = 900): number {
     const inicio = desde.current, t0 = performance.now();
     let cuadro = 0;
     const paso = (t: number) => {
-      const k = Math.min((t - t0) / ms, 1), suave = 1 - Math.pow(1 - k, 3);
+      const k = Math.min(Math.max((t - t0) / ms, 0), 1), suave = 1 - Math.pow(1 - k, 3);
       const actual = inicio + (objetivo - inicio) * suave;
       desde.current = actual; setV(actual);
       if (k < 1) cuadro = requestAnimationFrame(paso);
@@ -257,6 +257,25 @@ function aRanking(p: Puesto[], tipo: "entidad" | "proveedor"): ItemRanking[] {
   }));
 }
 
+/** La cifra grande, contando hasta el valor final. El número ocupa siempre el ancho del valor final,
+ *  así el título no cambia de renglón ni empuja lo de abajo mientras cuenta. Solo este componente se
+ *  vuelve a dibujar en cada cuadro. */
+function CifraAnimada({ monto }: { monto: number }) {
+  const actual = useContador(monto);
+  const partir = (t: string) => t.match(/^(\D*)([\d.,]+)(.*)$/) ?? ["", "", t, ""];
+  const [, antes, numFinal, despues] = partir(montoCorto(monto));
+  const decimales = numFinal.includes(",") ? numFinal.split(",")[1].length : 0;
+  const vivo = decimales > 0 || monto >= 1e6
+    ? new Intl.NumberFormat("es-PY", { minimumFractionDigits: decimales, maximumFractionDigits: decimales })
+        .format(actual / (monto >= 1e12 ? 1e12 : monto >= 1e9 ? 1e9 : monto >= 1e6 ? 1e6 : 1))
+    : partir(montoEnUnidadDe(actual, monto))[2];
+  return (
+    <mark aria-hidden="true">
+      {antes}<span className="num"><span className="num-final">{numFinal}</span><span className="num-vivo">{actual >= monto ? numFinal : vivo}</span></span>{despues}
+    </mark>
+  );
+}
+
 // ---------- Portada ----------
 function Inicio() {
   useTitulo(null);
@@ -274,18 +293,17 @@ function Inicio() {
   const uno = p?.un_oferente.find((c) => c.titulo !== estrella?.titulo) ?? null;
   const otras = p?.mayores.filter((c) => c !== estrella && c.titulo !== uno?.titulo).slice(0, 2) ?? [];
   const serie = p?.serie.slice(-Math.min(p.serie.length, dias * 2)) ?? [];
-  const total = useContador(p?.monto_total);
 
   return (
     <>
       <section className="hero">
         <p className="antetitulo">{lapso} el Estado paraguayo adjudicó</p>
         <h1 className="cifra" aria-label={p ? montoCorto(p.monto_total) : undefined}>
-          {p ? <mark aria-hidden="true">{montoEnUnidadDe(total, p.monto_total)}</mark> : <span className="fantasma">Gs. 0,0 mil millones</span>}
+          {p ? <CifraAnimada monto={p.monto_total} /> : <span className="fantasma">Gs. 0,0 mil millones</span>}
         </h1>
         {p && (
           <p className="bajada entra">
-            {enSalarios(p.monto_total) && <>Equivale a <strong>{entero(Math.round(total / SALARIO_MINIMO))} salarios mínimos</strong>. </>}
+            {enSalarios(p.monto_total) && <>Equivale a <strong>{enSalarios(p.monto_total)}</strong>. </>}
             Fueron {veces(p.adjudicaciones, "adjudicación", "adjudicaciones")} de {veces(p.instituciones, "institución", "instituciones")} a {veces(p.proveedores, "proveedor", "proveedores")}.
             {cambio != null && <> <span className="cambio">{cambio >= 0 ? "▲" : "▼"} {Math.abs(cambio)} % {cambio >= 0 ? "más" : "menos"} que {anterior}</span>.</>}
           </p>
