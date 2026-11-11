@@ -457,7 +457,7 @@ function cierraEn(iso: string): { texto: string; pronto: boolean } {
   const ms = new Date(iso).getTime() - Date.now();
   const dias = Math.floor(ms / 864e5);
   if (ms < 36e5) return { texto: "Cierra en menos de una hora", pronto: true };
-  if (dias < 1) return { texto: `Cierra hoy, en ${Math.floor(ms / 36e5)} h`, pronto: true };
+  if (dias < 1) return { texto: `Cierra en ${Math.floor(ms / 36e5)} h`, pronto: true };
   if (dias === 1) return { texto: "Cierra mañana", pronto: true };
   return { texto: `Cierra en ${dias} días`, pronto: dias <= 3 };
 }
