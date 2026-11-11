@@ -867,8 +867,21 @@ function alternarTema() {
   guardado.poner("tema", oscuro ? "oscuro" : "claro");
 }
 
+/** Las animaciones de entrada valen solo los primeros segundos de cada pantalla. Pasado ese tiempo se apagan,
+ *  así nada puede quedar invisible si el navegador no está dibujando (pestaña en segundo plano, visor congelado). */
+function useAnimacionDeEntrada(camino: string) {
+  useEffect(() => {
+    const raiz = document.documentElement;
+    if (document.visibilityState !== "visible") { raiz.classList.remove("anima"); return; }
+    raiz.classList.add("anima");
+    const t = setTimeout(() => raiz.classList.remove("anima"), 2600);
+    return () => clearTimeout(t);
+  }, [camino]);
+}
+
 export default function App() {
   const camino = useRuta();
+  useAnimacionDeEntrada(camino);
   const [, seg, ...resto] = camino.split("/");
   let arg = resto.join("/");
   try { arg = decodeURIComponent(arg); } catch { /* se usa tal cual */ }
