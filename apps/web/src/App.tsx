@@ -431,6 +431,8 @@ function NotaDatos() {
 }
 
 // ---------- Rubros y precios ----------
+// "Kilogramos" → "kilogramo", "Metros cuadrados" → "metro cuadrado" (para decir "por kilogramo").
+const unidadSingular = (u: string | null | undefined) => (u ?? "unidad").toLowerCase().replace(/(?<=[oa])s(?=\s|$)/g, "");
 const veces2 = (max: number | null, min: number | null) => (max && min && min > 0 ? max / min : null);
 const nVeces = (v: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1 }).format(v);
 
@@ -440,7 +442,7 @@ function TarjetaComparable({ c }: { c: Comparable }) {
     <a className="tarjeta comparable" href={ruta.producto(c.codigo)}>
       <h3>{nombreLindo(c.nombre.toUpperCase())}</h3>
       <p className="rango"><span>{formatearMonto(Math.round(c.precio_min))}</span><span className="hasta" aria-hidden="true">→</span><span>{formatearMonto(Math.round(c.precio_max))}</span></p>
-      <p className="meta">por {(c.unidad ?? "unidad").toLowerCase()} · {veces(c.instituciones, "institución", "instituciones")}{v ? <> · <strong>{nVeces(v)} veces</strong> entre la que menos y la que más pagó</> : null}</p>
+      <p className="meta">por {unidadSingular(c.unidad)} · {veces(c.instituciones, "institución", "instituciones")}{v ? <> · <strong>{nVeces(v)} veces</strong> entre la que menos y la que más pagó</> : null}</p>
     </a>
   );
 }
@@ -524,7 +526,8 @@ function PaginaProducto({ codigo }: { codigo: string }) {
   const nombre = p ? nombreLindo(p.nombre.toUpperCase()) : "Producto";
   useTitulo(nombre);
   const v = p ? veces2(p.precio_max, p.precio_min) : null;
-  const unidad = (p?.unidad ?? "unidad").toLowerCase();
+  const unidad = unidadSingular(p?.unidad);
+  const unidades = (p?.unidad ?? "unidades").toLowerCase() === "unidad" ? "unidades" : (p?.unidad ?? "unidades").toLowerCase();
   const max = Math.max(...(p?.instituciones.map((i) => i.precio) ?? [1]), 1);
   return (
     <section className="pagina">
@@ -555,7 +558,7 @@ function PaginaProducto({ codigo }: { codigo: string }) {
                   </div>
                   <span className="barra" aria-hidden="true"><span style={{ width: `${Math.max((i.precio / max) * 100, 2)}%` }} /></span>
                   <p className="meta">
-                    {entero(i.cantidad)} {i.cantidad === 1 ? "unidad" : "unidades"} · {montoCorto(i.monto)} · {formatearFecha(i.fecha)}
+                    {entero(i.cantidad)} {i.cantidad === 1 ? unidad : unidades} · {montoCorto(i.monto)} · {formatearFecha(i.fecha)}
                     {i.proveedor_ruc && <> · <a href={ruta.proveedor(i.proveedor_ruc)}>{nombreLindo(i.proveedor_nombre)}</a></>}
                     {i.url_dncp && <> · <a href={i.url_dncp} target="_blank" rel="noopener noreferrer">DNCP ↗</a></>}
                   </p>
@@ -564,7 +567,7 @@ function PaginaProducto({ codigo }: { codigo: string }) {
             </ol>
             {p.codigo >= "70" && <p className="nota aviso">Es un servicio u obra: cada contrato tiene un alcance distinto, así que estos precios no son comparables entre sí. Sirven como referencia de cuánto se pagó.</p>}
             <p className="nota">
-              Se compara la misma unidad de medida ({unidad}){p.otras_unidades > 0 && `; dejamos fuera ${p.otras_unidades === 1 ? "otra presentación" : `otras ${p.otras_unidades} presentaciones`}`}.
+              Se compara la misma unidad de medida ({unidades}){p.otras_unidades > 0 && `; dejamos fuera ${p.otras_unidades === 1 ? "otra presentación" : `otras ${p.otras_unidades} presentaciones`}`}.
               Es el precio promedio que pagó cada institución en el período. La marca, la calidad, la cantidad, el plazo de entrega y el flete pueden explicar diferencias: no implica una irregularidad.
             </p>
           </>

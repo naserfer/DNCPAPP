@@ -27,7 +27,7 @@ const exacto = (m) => `Gs. ${new Intl.NumberFormat("es-PY", { maximumFractionDig
 async function metaProducto(codigo) {
   const p = await rpc("producto", { p_codigo: codigo, dias: 90 });
   if (!p || !p.nombre || !p.instituciones?.length) return null;
-  const u = (p.unidad || "unidad").toLowerCase(), n = p.instituciones.length;
+  const u = (p.unidad || "unidad").toLowerCase().replace(/(?<=[oa])s(?=\s|$)/g, ""), n = p.instituciones.length;
   return {
     titulo: `${p.nombre}: cuánto pagó cada institución · Contratos Abiertos`,
     desc: n > 1

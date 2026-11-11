@@ -46,7 +46,7 @@ h1{font-family:F,Georgia,serif;font-weight:600;font-size:${tam}px;line-height:1.
 .m.r b{font-size:${`${exacto(precio_min ?? 0)}${exacto(precio_max ?? 0)}`.length > 26 ? 44 : 56}px}
 </style>${tipo === "producto" ? `<p class="e">¿Quién paga más por lo mismo?</p>
 <h1>${esc(nom)}</h1>
-<p class="m r">De ${exacto(precio_min)} a <b>${exacto(precio_max)}</b><br>por ${esc((unidad ?? "unidad").toLowerCase())} · ${n(instituciones, 0)} instituciones · últimos 90 días</p>
+<p class="m r">De ${exacto(precio_min)} a <b>${exacto(precio_max)}</b><br>por ${esc((unidad ?? "unidad").toLowerCase().replace(/(?<=[oa])s(?=\s|$)/g, ""))} · ${n(instituciones, 0)} instituciones · últimos 90 días</p>
 <div class="p"><div class="l"><i></i>Contratos Abiertos</div><span>Datos abiertos de la DNCP</span></div>` : `<p class="e">${tipo === "proveedor" ? "Proveedor del Estado" : "Institución pública"}</p>
 <h1>${esc(nom)}</h1>
 <p class="m">${tipo === "proveedor" ? "Ganó" : "Adjudicó"} <b>${corto(Number(monto))}</b><br>en ${n(cantidad, 0)} ${tipo === "proveedor" ? (cantidad === 1 ? "adjudicación" : "adjudicaciones") : (cantidad === 1 ? "compra" : "compras")} · últimos 90 días</p>
