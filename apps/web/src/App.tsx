@@ -453,7 +453,7 @@ function TarjetaLlamado({ l }: { l: Llamado }) {
         {l.modalidad && <span className="pastilla">{l.modalidad}</span>}
       </p>
       <Titulo texto={l.titulo} />
-      <p className="monto-llamado">{l.monto ? <>Hasta <strong>{formatearMonto(l.monto, l.moneda ?? "PYG")}</strong> <span>(monto estimado)</span></> : <span>Monto no publicado</span>}</p>
+      <p className="monto-llamado">{l.monto ? <>Hasta <strong>{formatearMonto(l.monto, l.moneda ?? "PYG")}</strong> <span>(monto estimado)</span></> : <span>Monto estimado: consultalo en el pliego</span>}</p>
       <p className="meta">
         {l.entidad_id ? <a href={ruta.entidad(l.entidad_id)}>{nombreEntidad(l.entidad_nombre)}</a> : nombreEntidad(l.entidad_nombre)}
         {" · "}ofertas hasta el {formatearFecha(l.cierre)}
@@ -478,7 +478,7 @@ function PaginaAbiertas() {
       <h1 className="titulo-ficha">Qué está por comprar el Estado</h1>
       {d && d.total > 0 && (
         <p className="resumen-ficha">
-          Hoy hay <mark>{veces(d.total, "licitación abierta", "licitaciones abiertas")}</mark> que reciben ofertas, por hasta {montoCorto(d.monto)} en total. {veces(d.esta_semana, "cierra", "cierran")} en los próximos 7 días.
+          Hoy hay <mark>{veces(d.total, "licitación abierta", "licitaciones abiertas")}</mark> que reciben ofertas{d.monto > 0 && <>, por hasta {montoCorto(d.monto)} en total</>}. {veces(d.esta_semana, "cierra", "cierran")} en los próximos 7 días.
         </p>
       )}
       <div className="acciones"><Compartir camino="/abiertas" texto={d ? `Hoy hay ${veces(d.total, "licitación abierta", "licitaciones abiertas")} del Estado paraguayo que reciben ofertas.` : "Licitaciones abiertas del Estado paraguayo."} /></div>
