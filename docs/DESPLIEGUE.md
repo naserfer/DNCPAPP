@@ -1,19 +1,15 @@
 # Despliegue
 
-## Datos (ya funcionando)
-La ingesta corre **dentro de Supabase** (migración `002`): pg_cron cada minuto + pg_net contra la API pública de la DNCP (sin credenciales, 15 llamadas/min). No hay secretos en GitHub ni en el frontend.
+Todo corre en planes gratuitos.
 
-- Estado: SQL Editor → `select * from public.ingesta_estado;`
-- Carga histórica: `select public.dncp_cargar_desde('2026-01-01');`
-- Errores: `select ocid, detalle from public.ingesta_cola where estado = 'error';`
+- **Sitio:** Cloudflare Pages, proyecto `contratos-abiertos`, conectado a este repositorio. Cada `push` a `main` publica solo
+  (carpeta `apps/web`, comando `npm install && npm run build`, salida `dist`).
+- **Datos:** Supabase. La carga desde la DNCP corre dentro de la base (pg_cron + pg_net), no hay servidores aparte.
+  Las migraciones de `supabase/migrations` se aplican a mano, en orden, desde el editor SQL.
+- **Caché:** `apps/web/public/_worker.js` guarda unos minutos las consultas públicas (`/api/...`) y arma la vista previa de cada ficha.
+  Si el caché falla, el sitio consulta directo a Supabase.
+- **Imágenes de vista previa:** el flujo `Vistas previas` (GitHub Actions) las genera todos los días y las publica en la release `og`.
+- **Visitas:** Cloudflare Web Analytics (sin cookies), activado en el proyecto de Pages.
+- **Canal de Telegram:** pasos en la cabecera de `supabase/migrations/20261110000010_canal_telegram.sql`. El token va solo en el Vault de Supabase.
 
-Capacidad: ~12 procesos/min (~17.000/día). Los últimos 30 días se completan en pocas horas.
-
-## Web (Cloudflare Pages)
-
-En producción: https://contratos-abiertos.pages.dev (proyecto `contratos-abiertos`, subida directa).
-El build listo está en `apps/web/dist` (generado con esbuild; el CI valida además el build con Vite).
-Configuración pública en `apps/web/.env.production` (URL y clave publishable, protegidas por RLS).
-
-- Subida directa: Workers & Pages → Create → Pages → Upload assets → proyecto `contratos-abiertos` → subir `apps/web/dist`.
-- Automático (opcional): Connect to Git → repo `DNCPAPP`, root `apps/web`, build `npm install && npm run build`, output `dist`.
+Nunca se sube el archivo `.env`. Las únicas claves en el código son las públicas (protegidas por RLS).
