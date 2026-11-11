@@ -26,8 +26,9 @@ const lindo = (s) => {
 export const archivo = (tipo, id) => `${tipo}-${String(id).replace(/[^A-Za-z0-9_-]/g, "_")}.jpg`;
 
 const fuente = readFileSync(new URL("../../apps/web/public/fonts/fraunces-600.woff2", import.meta.url)).toString("base64");
-const tarjeta = ({ tipo, nombre, monto, cantidad }) => {
-  const nom = lindo(nombre);
+const exacto = (m) => `Gs. ${n(Math.round(m), 0)}`;
+const tarjeta = ({ tipo, nombre, monto, cantidad, unidad, precio_min, precio_max, instituciones }) => {
+  const nom = tipo === "producto" ? nombre.trim() : lindo(nombre);
   const tam = nom.length > 70 ? 50 : nom.length > 44 ? 60 : nom.length > 26 ? 72 : 88;
   return `<!doctype html><meta charset="utf-8"><style>
 @font-face{font-family:F;src:url(data:font/woff2;base64,${fuente}) format("woff2");font-weight:600}
@@ -42,17 +43,24 @@ h1{font-family:F,Georgia,serif;font-weight:600;font-size:${tam}px;line-height:1.
 .l i{width:38px;height:38px;border-radius:9px;background:#111110;display:grid;place-items:center}
 .l i::after{content:"";width:20px;height:7px;background:#ffd60a;border-radius:2px;box-shadow:0 -10px 0 #faf9f5}
 .p span{color:#6b6a63}
-</style><p class="e">${tipo === "proveedor" ? "Proveedor del Estado" : "Institución pública"}</p>
+.m.r b{font-size:${`${exacto(precio_min ?? 0)}${exacto(precio_max ?? 0)}`.length > 26 ? 44 : 56}px}
+</style>${tipo === "producto" ? `<p class="e">¿Quién paga más por lo mismo?</p>
+<h1>${esc(nom)}</h1>
+<p class="m r">De ${exacto(precio_min)} a <b>${exacto(precio_max)}</b><br>por ${esc((unidad ?? "unidad").toLowerCase())} · ${n(instituciones, 0)} instituciones · últimos 90 días</p>
+<div class="p"><div class="l"><i></i>Contratos Abiertos</div><span>Datos abiertos de la DNCP</span></div>` : `<p class="e">${tipo === "proveedor" ? "Proveedor del Estado" : "Institución pública"}</p>
 <h1>${esc(nom)}</h1>
 <p class="m">${tipo === "proveedor" ? "Ganó" : "Adjudicó"} <b>${corto(Number(monto))}</b><br>en ${n(cantidad, 0)} ${tipo === "proveedor" ? (cantidad === 1 ? "adjudicación" : "adjudicaciones") : (cantidad === 1 ? "compra" : "compras")} · últimos 90 días</p>
-<div class="p"><div class="l"><i></i>Contratos Abiertos</div><span>Datos abiertos de la DNCP</span></div>`;
+<div class="p"><div class="l"><i></i>Contratos Abiertos</div><span>Datos abiertos de la DNCP</span></div>`}`;
 };
 
 const lista = modo === "--demo"
   ? [{ tipo: "entidad", id: "demo-1", nombre: "MINISTERIO DE SALUD PÚBLICA Y BIENESTAR SOCIAL", monto: 131.7e9, cantidad: 212 },
      { tipo: "proveedor", id: "80012345-6", nombre: "CONSTRUCTORA DEL ESTE S.A.", monto: 8.4e9, cantidad: 1 },
+     { tipo: "producto", id: "50111510-001", nombre: "Carne vacuna en Res", unidad: "Kilogramos", precio_min: 31000, precio_max: 73170, instituciones: 3 },
+     { tipo: "producto", id: "43211503-001", nombre: "Computadoras portátiles - Intermedia", unidad: "Unidad", precio_min: 4736055, precio_max: 8700000, instituciones: 4 },
      { tipo: "entidad", id: "demo-3", nombre: "Gobierno Departamental de Ñeembucú / Secretaría de Obras Públicas, Comunicaciones y Servicios Departamentales del Sur", monto: 43e6, cantidad: 7 }]
-  : (await Promise.all(["entidad", "proveedor"].map(async (tipo) => (await rpc("ranking", { tipo, dias: 90, limite: POR_TIPO })).map((p) => ({ ...p, tipo }))))).flat();
+  : (await Promise.all(["entidad", "proveedor"].map(async (tipo) => (await rpc("ranking", { tipo, dias: 90, limite: POR_TIPO })).map((p) => ({ ...p, tipo }))))).flat()
+      .concat((await rpc("comparables", { dias: 90, limite: 50 })).map((c) => ({ ...c, tipo: "producto", id: c.codigo })));
 
 mkdirSync(salida, { recursive: true });
 const nav = await chromium.launch();

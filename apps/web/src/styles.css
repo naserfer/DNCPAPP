@@ -223,3 +223,5 @@ a.tarjeta.comparable h3 { margin-top: 0; font-size: 1.05rem; }
 .avisos { padding: 24px; border: 1.5px solid var(--fg); border-radius: 18px; }
 .avisos h2 { margin-bottom: 10px !important; }
 @media (max-width: 420px) { .barra-sup nav a { padding: 0 8px; font-size: .9rem; } .logo span { font-size: .95rem; } }
+
+.nota.aviso { border-left: 3px solid var(--acento); padding-left: 12px; color: var(--fg); }

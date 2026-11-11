@@ -23,7 +23,21 @@ async function datos(ruta, init) {
 const fecha = (iso) => new Intl.DateTimeFormat("es-PY", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Asuncion" }).format(new Date(iso));
 const rpc = (fn, args) => datos("rpc/" + fn, { method: "POST", body: JSON.stringify(args) });
 
+const exacto = (m) => `Gs. ${new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(Math.round(m))}`;
+async function metaProducto(codigo) {
+  const p = await rpc("producto", { p_codigo: codigo, dias: 90 });
+  if (!p || !p.nombre || !p.instituciones?.length) return null;
+  const u = (p.unidad || "unidad").toLowerCase(), n = p.instituciones.length;
+  return {
+    titulo: `${p.nombre}: cuánto pagó cada institución · Contratos Abiertos`,
+    desc: n > 1
+      ? `${n} instituciones públicas lo compraron y pagaron entre ${exacto(p.precio_min)} y ${exacto(p.precio_max)} por ${u}. Mirá quién pagó cuánto.`
+      : `El Estado paraguayo lo compró a ${exacto(p.precio_max)} por ${u}.`,
+  };
+}
+
 async function meta(tipo, id) {
+  if (tipo === "producto") return metaProducto(id);
   const f = tipo === "proveedor" ? await rpc("ficha_proveedor", { p_ruc: id }) : await rpc("ficha_entidad", { p_id: id });
   if (!f || !f.nombre) return null;
   const n = f.adjudicaciones;
@@ -55,9 +69,9 @@ async function imagen(tipo, id, url, request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const og = url.pathname.match(/^\/og\/(proveedor|entidad)\/([^/]+)\.jpg$/);
+    const og = url.pathname.match(/^\/og\/(proveedor|entidad|producto)\/([^/]+)\.jpg$/);
     if (og && request.method === "GET") return imagen(og[1], decodeURIComponent(og[2]), url, request, env);
-    const m = url.pathname.match(/^\/(proveedor|entidad)\/([^/]+)\/?$/);
+    const m = url.pathname.match(/^\/(proveedor|entidad|producto)\/([^/]+)\/?$/);
     if (!m || request.method !== "GET") return env.ASSETS.fetch(request);
 
     const pagina = await env.ASSETS.fetch(new Request(new URL("/", url), request));

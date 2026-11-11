@@ -537,7 +537,7 @@ function PaginaProducto({ codigo }: { codigo: string }) {
             <p className="resumen-ficha">
               {p.instituciones.length > 1 ? <>
                 {veces(p.instituciones.length, "institución lo compró", "instituciones lo compraron")} desde el {formatearFecha(p.desde)}. Pagaron entre <mark>{formatearMonto(Math.round(p.precio_min ?? 0))}</mark> y <mark>{formatearMonto(Math.round(p.precio_max ?? 0))}</mark> por {unidad}.
-                {v && v >= 1.2 && <> La que más pagó, pagó {nVeces(v)} veces lo que la que menos.</>}
+                {v && v >= 1.2 && v <= 20 && p.codigo < "70" && <> La que más pagó, pagó {nVeces(v)} veces lo que la que menos.</>}
               </> : <>Una institución lo compró desde el {formatearFecha(p.desde)}, a {formatearMonto(Math.round(p.precio_max ?? 0))} por {unidad}.</>}
             </p>
             <div className="acciones">
@@ -562,6 +562,7 @@ function PaginaProducto({ codigo }: { codigo: string }) {
                 </li>
               ))}
             </ol>
+            {p.codigo >= "70" && <p className="nota aviso">Es un servicio u obra: cada contrato tiene un alcance distinto, así que estos precios no son comparables entre sí. Sirven como referencia de cuánto se pagó.</p>}
             <p className="nota">
               Se compara la misma unidad de medida ({unidad}){p.otras_unidades > 0 && `; dejamos fuera ${p.otras_unidades === 1 ? "otra presentación" : `otras ${p.otras_unidades} presentaciones`}`}.
               Es el precio promedio que pagó cada institución en el período. La marca, la calidad, la cantidad, el plazo de entrega y el flete pueden explicar diferencias: no implica una irregularidad.
