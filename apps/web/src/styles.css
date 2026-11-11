@@ -242,6 +242,6 @@ a.tarjeta.comparable h3 { margin-top: 0; font-size: 1.05rem; }
 html:not(.anima) *, html:not(.anima) *::before, html:not(.anima) *::after { animation: none !important; }
 
 /* Cifra animada: el número reserva el ancho del valor final para que nada salte mientras cuenta. */
-.cifra .num { display: inline-grid; }
-.cifra .num > span { grid-area: 1 / 1; }
-.cifra .num-final { visibility: hidden; }
+.cifra .cuenta { display: inline-grid; }
+.cifra .cuenta > span { grid-area: 1 / 1; }
+.cifra .cuenta-final { visibility: hidden; }

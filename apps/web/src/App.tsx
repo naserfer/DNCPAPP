@@ -271,7 +271,7 @@ function CifraAnimada({ monto }: { monto: number }) {
     : partir(montoEnUnidadDe(actual, monto))[2];
   return (
     <mark aria-hidden="true">
-      {antes}<span className="num"><span className="num-final">{numFinal}</span><span className="num-vivo">{actual >= monto ? numFinal : vivo}</span></span>{despues}
+      {antes}<span className="cuenta"><span className="cuenta-final">{numFinal}</span><span className="cuenta-vivo">{actual >= monto ? numFinal : vivo}</span></span>{despues}
     </mark>
   );
 }
