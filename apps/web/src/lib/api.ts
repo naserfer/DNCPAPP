@@ -50,7 +50,19 @@ async function rest<T>(ruta: string, init?: RequestInit): Promise<T> {
   if (!res.ok) throw new Error(`Error ${res.status}`);
   return res.json() as Promise<T>;
 }
-const rpc = <T,>(fn: string, args: object = {}) => rest<T>(`rpc/${fn}`, { method: "POST", body: JSON.stringify(args) });
+// Las consultas iguales para todos pasan por el caché del sitio (/api), así un pico de visitas no golpea la base.
+// Si ese camino falla por lo que sea, se consulta directo.
+const EN_CACHE = new Set(["resumen_semanal", "ranking", "rubros", "rubro", "producto", "comparables", "ficha_entidad", "ficha_proveedor", "estado_datos", "buscar", "buscar_productos"]);
+async function rpc<T>(fn: string, args: object = {}): Promise<T> {
+  const cuerpo = JSON.stringify(args);
+  if (EN_CACHE.has(fn) && cuerpo.length <= 300) {
+    try {
+      const r = await fetch(`/api/${fn}?a=${encodeURIComponent(cuerpo)}`);
+      if (r.ok && r.headers.get("content-type")?.includes("application/json")) return (await r.json()) as T;
+    } catch { /* se intenta directo */ }
+  }
+  return rest<T>(`rpc/${fn}`, { method: "POST", body: cuerpo });
+}
 
 export const api = {
   periodo: (dias: number): Promise<Periodo> => (modoDemo ? demo.periodo() : rpc("resumen_semanal", { dias })),

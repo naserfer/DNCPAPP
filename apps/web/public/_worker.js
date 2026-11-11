@@ -66,9 +66,28 @@ async function imagen(tipo, id, url, request, env) {
   } catch { return general(); }
 }
 
+// Caché de consultas públicas: segundos que se guarda cada respuesta.
+const API = { resumen_semanal: 300, ranking: 300, rubros: 600, rubro: 600, producto: 600, comparables: 900, ficha_entidad: 300, ficha_proveedor: 300, estado_datos: 120, buscar: 600, buscar_productos: 600 };
+async function api(fn, url, ctx) {
+  const json = (cuerpo, estado, cache) => new Response(cuerpo, { status: estado, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": cache, "X-Content-Type-Options": "nosniff" } });
+  const a = url.searchParams.get("a") ?? "{}";
+  if (!(fn in API) || a.length > 300) return json('{"error":"no encontrado"}', 404, "no-store");
+  try { if (typeof JSON.parse(a) !== "object") throw 0; } catch { return json('{"error":"consulta inválida"}', 400, "no-store"); }
+  const clave = new Request(`${url.origin}/api/${fn}?a=${encodeURIComponent(a)}`);
+  const guardada = await caches.default.match(clave);
+  if (guardada) return guardada;
+  const r = await fetch(SB + "rpc/" + fn, { method: "POST", body: a, headers: { apikey: KEY, "Content-Type": "application/json" } });
+  if (!r.ok) return json('{"error":"sin datos"}', 502, "no-store");
+  const resp = json(await r.text(), 200, `public, max-age=60, s-maxage=${API[fn]}`);
+  ctx.waitUntil(caches.default.put(clave, resp.clone()));
+  return resp;
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const ap = url.pathname.match(/^\/api\/([a-z_]+)$/);
+    if (ap && request.method === "GET") return api(ap[1], url, ctx);
     const og = url.pathname.match(/^\/og\/(proveedor|entidad|producto)\/([^/]+)\.jpg$/);
     if (og && request.method === "GET") return imagen(og[1], decodeURIComponent(og[2]), url, request, env);
     const m = url.pathname.match(/^\/(proveedor|entidad|producto)\/([^/]+)\/?$/);
