@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { api, modoDemo, type Comparable, type Compra, type EstadoDatos, type FichaProducto, type FichaRubro, type Rubro, type FichaEntidad, type FichaProveedor, type Novedades, type Opcion, type Periodo, type Puesto, type Resultado } from "./lib/api";
+import { api, modoDemo, type Abiertas, type Fuente, type Llamado, type Comparable, type Compra, type EstadoDatos, type FichaProducto, type FichaRubro, type Rubro, type FichaEntidad, type FichaProveedor, type Novedades, type Opcion, type Periodo, type Puesto, type Resultado } from "./lib/api";
 import { nombreRubro } from "./lib/rubros";
 import { SALARIO_MINIMO, diaCorto, enSalarios, entero, formatearFecha, formatearMonto, haceCuanto, montoCorto, montoEnUnidadDe, nombreEntidad, nombreLindo, tituloLimpio } from "./lib/format";
 
@@ -338,6 +338,7 @@ function Inicio() {
       </Estado>
 
       <Comparables limite={3} titulo="¿Quién paga más por lo mismo?" />
+      <AvisoAbiertas />
       {!fijada && <ElegirMunicipalidad elegir={setFijada} />}
       <BotonTelegram />
     </>
@@ -430,6 +431,109 @@ function NotaDatos() {
   );
 }
 
+// ---------- Licitaciones abiertas ----------
+function cierraEn(iso: string): { texto: string; pronto: boolean } {
+  const ms = new Date(iso).getTime() - Date.now();
+  const dias = Math.floor(ms / 864e5);
+  if (ms < 36e5) return { texto: "Cierra en menos de una hora", pronto: true };
+  if (dias < 1) return { texto: `Cierra hoy, en ${Math.floor(ms / 36e5)} h`, pronto: true };
+  if (dias === 1) return { texto: "Cierra mañana", pronto: true };
+  return { texto: `Cierra en ${dias} días`, pronto: dias <= 3 };
+}
+
+function TarjetaLlamado({ l }: { l: Llamado }) {
+  const c = cierraEn(l.cierre);
+  return (
+    <article className="tarjeta llamado">
+      <p className="pastillas">
+        <span className={`pastilla${c.pronto ? " alerta" : ""}`}>{c.texto}</span>
+        {l.modalidad && <span className="pastilla">{l.modalidad}</span>}
+      </p>
+      <Titulo texto={l.titulo} />
+      <p className="monto-llamado">{l.monto ? <>Hasta <strong>{formatearMonto(l.monto, l.moneda ?? "PYG")}</strong> <span>(monto estimado)</span></> : <span>Monto no publicado</span>}</p>
+      <p className="meta">
+        {l.entidad_id ? <a href={ruta.entidad(l.entidad_id)}>{nombreEntidad(l.entidad_nombre)}</a> : nombreEntidad(l.entidad_nombre)}
+        {" · "}ofertas hasta el {formatearFecha(l.cierre)}
+        {l.rubro && <> · <a href={ruta.rubro(l.rubro)}>{nombreRubro(l.rubro)}</a></>}
+      </p>
+      {l.url_dncp && <p className="mas"><a className="btn" href={l.url_dncp} target="_blank" rel="noopener noreferrer">Ver pliego en la DNCP ↗</a></p>}
+    </article>
+  );
+}
+
+function PaginaAbiertas() {
+  useTitulo("Licitaciones abiertas ahora");
+  const [rubro, setRubro] = useState<string | null>(null);
+  const [texto, setTexto] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => { const t = setTimeout(() => setQ(texto), 350); return () => clearTimeout(t); }, [texto]);
+  const { cargando, datos: d, error } = useCarga<Abiertas>(() => api.abiertas(rubro, q), [rubro, q]);
+  return (
+    <section className="pagina">
+      <a href="/" className="volver">← Inicio</a>
+      <p className="etiqueta">Abiertas ahora</p>
+      <h1 className="titulo-ficha">Qué está por comprar el Estado</h1>
+      {d && d.total > 0 && (
+        <p className="resumen-ficha">
+          Hoy hay <mark>{veces(d.total, "licitación abierta", "licitaciones abiertas")}</mark> que reciben ofertas, por hasta {montoCorto(d.monto)} en total. {veces(d.esta_semana, "cierra", "cierran")} en los próximos 7 días.
+        </p>
+      )}
+      <div className="acciones"><Compartir camino="/abiertas" texto={d ? `Hoy hay ${veces(d.total, "licitación abierta", "licitaciones abiertas")} del Estado paraguayo que reciben ofertas.` : "Licitaciones abiertas del Estado paraguayo."} /></div>
+      <div className="filtro-texto">
+        <label htmlFor="q-abiertas" className="sr-only">Filtrar por palabra o institución</label>
+        <input id="q-abiertas" type="search" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Filtrar: notebooks, empedrado, IPS…" autoComplete="off" />
+      </div>
+      {d && d.rubros.length > 0 && (
+        <div className="filtro-rubros" role="group" aria-label="Rubro">
+          <button type="button" aria-pressed={rubro === null} onClick={() => setRubro(null)}>Todos</button>
+          {d.rubros.slice(0, 10).map((r) => (
+            <button key={r.id} type="button" aria-pressed={rubro === r.id} onClick={() => setRubro(rubro === r.id ? null : r.id)}>{nombreRubro(r.id)} · {r.cantidad}</button>
+          ))}
+        </div>
+      )}
+      <Estado cargando={cargando && !d} error={error} vacio={!!d && d.lista.length === 0}
+        textoVacio={d && d.total === 0 ? "Todavía estamos cargando los llamados abiertos. Volvé en unos minutos." : "No hay llamados abiertos con ese filtro."}>
+        {d && d.lista.length > 0 && (
+          <>
+            <h2 className="sub">{rubro || q.trim().length >= 3 ? `${veces(d.encontrados, "resultado", "resultados")}, por fecha de cierre` : "Las que cierran primero"}</h2>
+            <div className="lista-tarjetas">{d.lista.map((l) => <TarjetaLlamado key={l.ocid} l={l} />)}</div>
+            {d.encontrados > d.lista.length && <p className="nota">Mostramos las {d.lista.length} que cierran primero de {entero(d.encontrados)}. Usá el filtro para afinar.</p>}
+          </>
+        )}
+      </Estado>
+      <p className="nota">Los montos son estimaciones de cada institución antes de recibir ofertas. Las fechas pueden cambiar por adendas: confirmá siempre en el pliego oficial de la DNCP.</p>
+      <NotaDatos />
+    </section>
+  );
+}
+
+function AvisoAbiertas() {
+  const { datos: d } = useCarga<Abiertas | null>(() => api.abiertas(null, "").catch(() => null), []);
+  if (!d || d.total === 0) return null;
+  return (
+    <section className="bloque" aria-labelledby="t-abiertas">
+      <h2 id="t-abiertas">Qué está por comprar</h2>
+      <p className="intro">Hoy hay <strong>{veces(d.total, "licitación abierta", "licitaciones abiertas")}</strong> que reciben ofertas; {veces(d.esta_semana, "cierra", "cierran")} esta semana.</p>
+      <p className="mas"><a className="btn" href="/abiertas">Ver licitaciones abiertas →</a></p>
+    </section>
+  );
+}
+
+const FUENTES: Record<string, string> = { "10": "Recursos del Tesoro (impuestos)", "20": "Crédito público (préstamos y bonos)", "30": "Recursos propios de cada institución" };
+function Fuentes({ dias }: { dias: number }) {
+  const { datos } = useCarga<Fuente[]>(() => api.fuentes(dias).catch(() => []), [dias]);
+  if (!datos?.length) return null;
+  const total = datos.reduce((a, f) => a + f.monto, 0) || 1;
+  return (
+    <section className="bloque" aria-labelledby="t-fuentes">
+      <h2 id="t-fuentes">Con qué plata se paga</h2>
+      <p className="intro">De dónde sale el dinero de los contratos, según lo que cada institución declara a la DNCP.</p>
+      <Ranking items={datos.map((f) => ({ k: f.id, href: "/rubros", nombre: FUENTES[f.id] ?? `Fuente ${f.id}`, monto: f.monto,
+        detalle: `${montoCorto(f.monto)} · ${Math.round((f.monto / total) * 100)} % · ${veces(f.compras, "contrato", "contratos")}` }))} />
+    </section>
+  );
+}
+
 // ---------- Rubros y precios ----------
 // "Kilogramos" → "kilogramo", "Metros cuadrados" → "metro cuadrado" (para decir "por kilogramo").
 const unidadSingular = (u: string | null | undefined) => (u ?? "unidad").toLowerCase().replace(/(?<=[oa])s(?=\s|$)/g, "");
@@ -481,6 +585,7 @@ function PaginaRubros() {
         {datos && <Ranking items={datos.slice(0, 25).map((r) => ({ k: r.id, href: ruta.rubro(r.id), nombre: nombreRubro(r.id), monto: r.monto,
           detalle: `${montoCorto(r.monto)} · ${veces(r.productos, "producto", "productos")} · ${veces(r.instituciones, "institución", "instituciones")}` }))} />}
       </Estado>
+      <Fuentes dias={dias} />
       <Comparables limite={12} titulo="¿Quién paga más por lo mismo?" />
       <NotaDatos />
     </section>
@@ -771,6 +876,7 @@ export default function App() {
   else if (seg === "entidad" && arg) vista = <Entidad id={arg} />;
   else if (seg === "ranking") vista = <PaginaRanking />;
   else if (seg === "rubros") vista = <PaginaRubros />;
+  else if (seg === "abiertas") vista = <PaginaAbiertas />;
   else if (seg === "rubro" && arg) vista = <PaginaRubro id={arg} />;
   else if (seg === "producto" && arg) vista = <PaginaProducto codigo={arg} />;
   else vista = <NoEncontrada />;
@@ -784,6 +890,7 @@ export default function App() {
           <span>Contratos <mark>Abiertos</mark></span>
         </a>
         <nav aria-label="Secciones">
+          <a href="/abiertas" aria-current={seg === "abiertas" ? "page" : undefined}>Abiertas</a>
           <a href="/rubros" aria-current={seg === "rubros" || seg === "rubro" || seg === "producto" ? "page" : undefined}>Rubros</a>
           <a href="/ranking" aria-current={seg === "ranking" ? "page" : undefined}>Ranking</a>
           <button className="tema" onClick={alternarTema} aria-label="Cambiar entre modo claro y oscuro" title="Modo claro / oscuro">

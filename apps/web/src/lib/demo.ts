@@ -1,5 +1,5 @@
 // Datos ficticios para desarrollar sin Supabase. NO son datos reales.
-import type { Comparable, Compra, EstadoDatos, FichaProducto, FichaRubro, Rubro, FichaEntidad, FichaProveedor, Novedades, Opcion, Periodo, Puesto, Resultado } from "./api";
+import type { Abiertas, Comparable, Fuente, Compra, EstadoDatos, FichaProducto, FichaRubro, Rubro, FichaEntidad, FichaProveedor, Novedades, Opcion, Periodo, Puesto, Resultado } from "./api";
 
 const prov = [
   { ruc: "80000001-1", nombre: "PROVEEDOR EJEMPLO SOCIEDAD ANONIMA" },
@@ -47,6 +47,12 @@ export const demo = {
         fecha: "2026-10-2" + i + "T15:00:00Z", proveedor_nombre: prov[i % 2].nombre, proveedor_ruc: prov[i % 2].ruc, url_dncp: url })) };
   },
   comparables: async (): Promise<Comparable[]> => comps,
+  abiertas: async (): Promise<Abiertas> => ({ total: 412, monto: 890e9, esta_semana: 96, actualizado: new Date().toISOString(),
+    rubros: [{ id: "72", cantidad: 120 }, { id: "50", cantidad: 64 }, { id: "43", cantidad: 31 }], encontrados: 3,
+    lista: [3, 6, 15].map((d, i) => ({ ocid: "demo-" + i, titulo: ["ADQUISICION DE EQUIPOS INFORMATICOS", "CONSTRUCCION DE EMPEDRADO EN EL BARRIO SAN JOSE", "PROVISION DE ALMUERZO ESCOLAR"][i],
+      entidad_id: ent[i].id, entidad_nombre: ent[i].nombre, monto: [180e6, 1.2e9, 4.5e9][i], moneda: "PYG", modalidad: ["Concurso de Ofertas", "Licitación Pública Nacional", "Licitación Pública Nacional"][i],
+      categoria: ["Bienes", "Obras", "Bienes"][i], rubro: ["43", "72", "50"][i], publicado: new Date(Date.now() - 8 * 864e5).toISOString(), cierre: new Date(Date.now() + d * 864e5).toISOString(), url_dncp: url })) }),
+  fuentes: async (): Promise<Fuente[]> => [{ id: "10", monto: 310e9, compras: 900 }, { id: "30", monto: 180e9, compras: 1400 }, { id: "20", monto: 95e9, compras: 60 }],
   buscarProductos: async (q: string) => comps.filter((c) => c.nombre.toLowerCase().includes(q.toLowerCase())).map((c) => ({ codigo: c.codigo, nombre: c.nombre })),
   periodo: async (): Promise<Periodo> => ({
     desde: "2026-11-03T15:00:00Z", hasta: "2026-11-10T15:00:00Z", adjudicaciones: 212, monto_total: 9_789_000_000, monto_anterior: 7_300_000_000, anterior_completo: true,

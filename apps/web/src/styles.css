@@ -225,3 +225,15 @@ a.tarjeta.comparable h3 { margin-top: 0; font-size: 1.05rem; }
 @media (max-width: 420px) { .barra-sup nav a { padding: 0 8px; font-size: .9rem; } .logo span { font-size: .95rem; } }
 
 .nota.aviso { border-left: 3px solid var(--acento); padding-left: 12px; color: var(--fg); }
+
+/* Licitaciones abiertas */
+.llamado .monto-llamado { margin: 6px 0 4px; font-size: 1rem; }
+.llamado .monto-llamado strong { font-family: var(--titular); font-size: 1.2rem; letter-spacing: -0.01em; }
+.llamado .monto-llamado span { color: var(--muted); font-size: .85rem; }
+.llamado .meta a { color: var(--fg); }
+.filtro-texto input { width: 100%; min-height: 48px; padding: 0 16px; font: inherit; color: var(--fg); background: var(--bg); border: 1.5px solid var(--line); border-radius: 14px; margin: 20px 0 12px; }
+.filtro-texto input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-color: var(--fg); }
+.filtro-rubros { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 12px; margin: 0 0 8px; scrollbar-width: thin; }
+.filtro-rubros button { flex: none; font: inherit; font-size: .85rem; font-weight: 600; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.filtro-rubros button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+@media (max-width: 520px) { .barra-sup { flex-wrap: wrap; row-gap: 2px; } .barra-sup nav { width: 100%; margin-left: -10px; width: calc(100% + 10px); } .barra-sup nav a { padding: 0 10px; font-size: .92rem; } .barra-sup nav .tema { margin-left: auto; } }

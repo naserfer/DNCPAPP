@@ -67,7 +67,7 @@ async function imagen(tipo, id, url, request, env) {
 }
 
 // Caché de consultas públicas: segundos que se guarda cada respuesta.
-const API = { resumen_semanal: 300, ranking: 300, rubros: 600, rubro: 600, producto: 600, comparables: 900, ficha_entidad: 300, ficha_proveedor: 300, estado_datos: 120, buscar: 600, buscar_productos: 600 };
+const API = { resumen_semanal: 300, ranking: 300, rubros: 600, rubro: 600, producto: 600, comparables: 900, ficha_entidad: 300, ficha_proveedor: 300, estado_datos: 120, buscar: 600, buscar_productos: 600, llamados_abiertos: 600, fuentes: 900 };
 async function api(fn, url, ctx) {
   const json = (cuerpo, estado, cache) => new Response(cuerpo, { status: estado, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": cache, "X-Content-Type-Options": "nosniff" } });
   const a = url.searchParams.get("a") ?? "{}";

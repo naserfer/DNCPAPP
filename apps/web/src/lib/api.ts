@@ -38,6 +38,10 @@ export type FichaProducto = { codigo: string; nombre: string; desde: string; uni
   precio_min: number | null; precio_max: number | null; precio_mediano: number | null;
   instituciones: { id: string; nombre: string; precio: number; cantidad: number; monto: number; compras: number; fecha: string;
     proveedor_nombre: string | null; proveedor_ruc: string | null; url_dncp: string | null }[] } | null;
+export type Llamado = { ocid: string; titulo: string; entidad_id: string | null; entidad_nombre: string | null; monto: number | null; moneda: string | null;
+  modalidad: string | null; categoria: string | null; rubro: string | null; publicado: string | null; cierre: string; url_dncp: string | null };
+export type Abiertas = { total: number; monto: number; esta_semana: number; actualizado: string | null; rubros: { id: string; cantidad: number }[]; encontrados: number; lista: Llamado[] };
+export type Fuente = { id: string; monto: number; compras: number };
 export type Opcion = { id: string; nombre: string };
 export type Novedades = { adjudicaciones: number; monto: number };
 export type EstadoDatos = { desde: string; cargando: boolean; actualizado: string | null };
@@ -52,7 +56,7 @@ async function rest<T>(ruta: string, init?: RequestInit): Promise<T> {
 }
 // Las consultas iguales para todos pasan por el caché del sitio (/api), así un pico de visitas no golpea la base.
 // Si ese camino falla por lo que sea, se consulta directo.
-const EN_CACHE = new Set(["resumen_semanal", "ranking", "rubros", "rubro", "producto", "comparables", "ficha_entidad", "ficha_proveedor", "estado_datos", "buscar", "buscar_productos"]);
+const EN_CACHE = new Set(["resumen_semanal", "ranking", "rubros", "rubro", "producto", "comparables", "ficha_entidad", "ficha_proveedor", "estado_datos", "buscar", "buscar_productos", "llamados_abiertos", "fuentes"]);
 async function rpc<T>(fn: string, args: object = {}): Promise<T> {
   const cuerpo = JSON.stringify(args);
   if (EN_CACHE.has(fn) && cuerpo.length <= 300) {
@@ -79,6 +83,9 @@ export const api = {
   producto: (codigo: string): Promise<FichaProducto> => (modoDemo ? demo.producto(codigo) : rpc("producto", { p_codigo: codigo, dias: 90 })),
   comparables: (limite: number): Promise<Comparable[]> => (modoDemo ? demo.comparables() : rpc("comparables", { dias: 90, limite })),
   buscarProductos: (q: string): Promise<{ codigo: string; nombre: string }[]> => (modoDemo ? demo.buscarProductos(q) : rpc("buscar_productos", { q, limite: 8 })),
+  abiertas: (rubro: string | null, q: string): Promise<Abiertas> =>
+    modoDemo ? demo.abiertas() : rpc("llamados_abiertos", { ...(rubro ? { p_rubro: rubro } : {}), ...(q.trim().length >= 3 ? { p_q: q.trim() } : {}), limite: 80 }),
+  fuentes: (dias: number): Promise<Fuente[]> => (modoDemo ? demo.fuentes() : rpc("fuentes", { dias })),
   canalTelegram: async (): Promise<string | null> =>
     modoDemo ? "https://t.me/ejemplo" : (await rest<{ valor: string }[]>("config?clave=eq.telegram_canal&select=valor"))[0]?.valor ?? null,
   municipalidades: (): Promise<Opcion[]> =>
