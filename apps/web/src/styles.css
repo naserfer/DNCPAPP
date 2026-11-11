@@ -237,3 +237,6 @@ a.tarjeta.comparable h3 { margin-top: 0; font-size: 1.05rem; }
 .filtro-rubros button { flex: none; font: inherit; font-size: .85rem; font-weight: 600; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .filtro-rubros button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 @media (max-width: 520px) { .barra-sup { flex-wrap: wrap; row-gap: 2px; } .barra-sup nav { width: 100%; margin-left: -10px; width: calc(100% + 10px); } .barra-sup nav a { padding: 0 10px; font-size: .92rem; } .barra-sup nav .tema { margin-left: auto; } }
+
+/* Sin cuadros de animación (pestaña en segundo plano, visor congelado): todo visible, sin animar. */
+html:not(.anima) *, html:not(.anima) *::before, html:not(.anima) *::after { animation: none !important; }

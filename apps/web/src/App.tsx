@@ -84,7 +84,8 @@ function useContador(objetivo: number | undefined, ms = 900): number {
   const desde = useRef(0);
   useEffect(() => {
     if (objetivo == null) return;
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { desde.current = objetivo; setV(objetivo); return; }
+    const directo = () => { desde.current = objetivo; setV(objetivo); };
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || document.visibilityState !== "visible") { directo(); return; }
     const inicio = desde.current, t0 = performance.now();
     let cuadro = 0;
     const paso = (t: number) => {
@@ -94,7 +95,9 @@ function useContador(objetivo: number | undefined, ms = 900): number {
       if (k < 1) cuadro = requestAnimationFrame(paso);
     };
     cuadro = requestAnimationFrame(paso);
-    return () => cancelAnimationFrame(cuadro);
+    // Si el navegador deja de dibujar a mitad de camino, se muestra el valor final igual.
+    const seguro = setTimeout(() => { cancelAnimationFrame(cuadro); directo(); }, ms + 500);
+    return () => { cancelAnimationFrame(cuadro); clearTimeout(seguro); };
   }, [objetivo, ms]);
   return v;
 }
